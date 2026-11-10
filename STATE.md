@@ -9,7 +9,9 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   reload persistence, reminder appears + stays answered).
   rescan shows "already checked in", data survives reload).
 - Hosting: GitHub Pages, public repo `dsmiledavid-ctrl/body-making`.
-- NOT yet on Marei's phone. AppSheet still the live system.
+- 2026-11-10 evening: v1.1.1 on Marei's iPhone (Home Screen), history restored (9 customers) — confirmed by Imre.
+  Restore needed v1.1.1 fix: iOS file picker must be attached to the DOM (CONFIRMED on device).
+  Camera scan on the real iPhone: NOT yet confirmed. AppSheet still exists as fallback.
 
 ## Why it exists (Imre, 2026-11-10)
 AppSheet app was ugly, had mislabeled confirmations, Imre couldn't maintain it, Marei sometimes
