@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.1.0';
+  const APP_VERSION = '1.1.1';
   const KEY_DB = 'bm.db', KEY_PREV = 'bm.db.prev', KEY_LANG = 'bm.lang';
 
   // ---------- storage ----------
@@ -383,19 +383,37 @@
   }
 
   function restorePick() {
+    // iPhone only reports the chosen file if the picker is attached to the page.
     const inp = document.createElement('input');
     inp.type = 'file'; inp.accept = '.json,application/json,text/plain';
-    inp.onchange = function () {
+    inp.style.position = 'fixed'; inp.style.left = '-9999px'; inp.style.opacity = '0';
+    document.body.appendChild(inp);
+    let handled = false;
+    const handle = function () {
+      if (handled) return;
       const f = inp.files && inp.files[0]; if (!f) return;
-      f.text().then(function (txt) {
+      handled = true;
+      readText(f).then(function (txt) {
+        inp.remove();
         let next;
-        try { next = BM.fromBackup(JSON.parse(txt)); } catch (e) { alert(t('badFile')); return; }
+        try { next = BM.fromBackup(JSON.parse(txt)); } catch (e) { alert(t('badFile') + '\n(' + e.message + ')'); return; }
         if (!confirm(t('restoreQ', { c: next.customers.length, a: next.attendance.length }))) return;
         try { localStorage.setItem('bm.db.beforeRestore', JSON.stringify(db)); } catch (e) { /* ignore */ }
         db = next; save(); render(); toast(t('restored'));
-      });
+      }).catch(function (e) { inp.remove(); alert(t('badFile') + '\n(' + (e && e.message) + ')'); });
     };
+    inp.addEventListener('change', handle);
+    inp.addEventListener('input', handle);
     inp.click();
+  }
+
+  function readText(file) {
+    if (file.text) return file.text();
+    return new Promise(function (res, rej) {
+      const r = new FileReader();
+      r.onload = function () { res(r.result); }; r.onerror = function () { rej(r.error); };
+      r.readAsText(file);
+    });
   }
 
   // ---------- Settings ----------
