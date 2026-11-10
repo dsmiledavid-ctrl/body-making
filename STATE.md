@@ -27,6 +27,10 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   the fix; real blur/focus can't be simulated. Next real test decides. Slide-to-start-class added (tap does nothing).
 - v1.5.0 (2026-11-11): slides (Imre-approved list) for delete customer, delete bundle, restore backup,
   delete class date, delete a check-in. Check in / Sell bundle at the scanner stay taps (speed; Undo exists).
+- v1.5.1 (2026-11-11): updates were held back (Imre's Android install stuck on 1.3): GitHub Pages sends
+  max-age=600 and Android resumes instead of reloading. Fix: service worker fetches with cache:'no-cache',
+  registers with updateViaCache:'none', checks for updates whenever the app comes to the front; Settings
+  has "Update to the latest version".
 - PROPOSED, not built: payment step when selling a bundle (cash / bank transfer details / Revolut) — waiting on Imre's answers.
 
 ## Why it exists (Imre, 2026-11-10)

@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.5.0';
+  const APP_VERSION = '1.5.1';
   const KEY_DB = 'bm.db', KEY_PREV = 'bm.db.prev', KEY_LANG = 'bm.lang';
 
   // ---------- storage ----------
@@ -625,7 +625,8 @@
       '<p class="small muted">' + esc(t('rulesNote')) + '</p></div>';
 
     html += '<p class="small muted center" style="margin-top:24px">' + esc(isStandalone() ? t('storageSafe') : t('storageUnsafe')) +
-      '<br>' + esc(t('version', { v: APP_VERSION })) + '</p>';
+      '<br>' + esc(t('version', { v: APP_VERSION })) + '</p>' +
+      '<button class="btn ghost" ' + on('main', updateNow) + '>' + esc(t('updateNow')) + '</button>';
 
     setTimeout(function () {
       document.querySelectorAll('[data-cfg]').forEach(function (inp) {
@@ -797,13 +798,23 @@
       '<button class="btn ghost" ' + on('modal', closeModal) + '>' + esc(t('later')) + '</button>');
   }
 
+  // ---------- updates ----------
+  let swReg = null;
+  function checkForUpdate() { if (swReg) swReg.update().catch(function () {}); }
+  function updateNow() {
+    toast(t('updating'));
+    const go = function () { location.reload(); };
+    const clear = window.caches ? caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }) : Promise.resolve();
+    (swReg ? swReg.update().catch(function () {}) : Promise.resolve()).then(function () { return clear; }).then(go, go);
+  }
+
   // ---------- boot ----------
   document.documentElement.lang = lang;
   render();
   askMissedClasses();
   // iPhone home-screen apps resume instead of reloading, so ask on resume too.
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible') { render(); askMissedClasses(); }
+    if (document.visibilityState === 'visible') { render(); askMissedClasses(); checkForUpdate(); }
   });
 
   if (navigator.storage && navigator.storage.persist) {
@@ -811,7 +822,9 @@
   }
 
   if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-    navigator.serviceWorker.register('sw.js').catch(function (e) { console.warn('sw', e); });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' })
+      .then(function (reg) { swReg = reg; })
+      .catch(function (e) { console.warn('sw', e); });
     let reloaded = false;
     const hadController = !!navigator.serviceWorker.controller; // first install: no reload needed
     navigator.serviceWorker.addEventListener('controllerchange', function () {
