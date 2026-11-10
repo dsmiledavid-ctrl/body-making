@@ -37,6 +37,9 @@ try:
         with pg.expect_file_chooser() as fc:
             pg.click('text=バックアップから復元')
         fc.value.set_files(imp)
+        pg.wait_for_selector('#modal:not([hidden]) .slider', timeout=5000)
+        assert pg.evaluate('window.__bm.db.customers.length') == 0, 'restored before the slide!'
+        slide(pg, '#modal .slider')
         pg.wait_for_timeout(500)
         n = pg.evaluate('window.__bm.db.customers.length')
         assert n > 0, 'restore failed'
@@ -54,9 +57,9 @@ try:
         pg.screenshot(path=f'{shots}/02-today.png')
         before = pg.evaluate('window.__bm.db.attendance.length')
         # a short tap/drag must NOT start the class
-        pg.click('.slider .slider-knob'); pg.wait_for_timeout(400)
+        pg.click('#app .slider .slider-knob'); pg.wait_for_timeout(400)
         assert pg.locator('#scanner[hidden]').count() == 1, 'tap started the class!'
-        slide(pg, '.slider')
+        slide(pg, '#app .slider')
         pg.wait_for_selector('#scanCard:not([hidden])', timeout=10000)
         pg.screenshot(path=f'{shots}/03-scanned.png')
         card = pg.inner_text('#scanCard')
@@ -82,6 +85,14 @@ try:
         pg.click('#nav button >> nth=1'); pg.screenshot(path=f'{shots}/07-customers.png')
         pg.click('.seg button >> nth=1'); pg.screenshot(path=f'{shots}/07b-bundles.png')
         pg.click('.seg button >> nth=2'); pg.screenshot(path=f'{shots}/07c-classes.png')
+        n_ses = pg.evaluate('window.__bm.db.sessions.length')
+        pg.click('#app .x >> nth=0'); pg.wait_for_selector('#modal:not([hidden]) .slider')
+        pg.screenshot(path=f'{shots}/07d-slide-delete.png')
+        pg.click('#modal .slider-knob'); pg.wait_for_timeout(300)   # tap: must not delete
+        assert pg.evaluate('window.__bm.db.sessions.length') == n_ses, 'tap deleted!'
+        slide(pg, '#modal .slider'); pg.wait_for_timeout(400)
+        assert pg.evaluate('window.__bm.db.sessions.length') == n_ses - 1, 'slide did not delete'
+        print('SLIDE DELETE: ok')
         pg.click('.seg button >> nth=1'); pg.click('.list .item >> nth=0'); pg.screenshot(path=f'{shots}/08-customer.png', full_page=True)
         pg.click('text=✎ >> nth=1'); pg.wait_for_selector('#modal:not([hidden]) #bwindow')
         pg.fill('#bwindow', '14'); pg.click('#modal .btn.primary'); pg.wait_for_timeout(200)

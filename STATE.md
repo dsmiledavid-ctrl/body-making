@@ -25,6 +25,8 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   beep + green flash on read, practice-mode counter (camera size + frames checked) to diagnose, hint "20-30 cm".
   NOTE: the previous version ALSO read a synthetic far-away card in the browser test, so the test does not prove
   the fix; real blur/focus can't be simulated. Next real test decides. Slide-to-start-class added (tap does nothing).
+- v1.5.0 (2026-11-11): slides (Imre-approved list) for delete customer, delete bundle, restore backup,
+  delete class date, delete a check-in. Check in / Sell bundle at the scanner stay taps (speed; Undo exists).
 - PROPOSED, not built: payment step when selling a bundle (cash / bank transfer details / Revolut) — waiting on Imre's answers.
 
 ## Why it exists (Imre, 2026-11-10)

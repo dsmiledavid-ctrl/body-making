@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.4.0';
+  const APP_VERSION = '1.5.0';
   const KEY_DB = 'bm.db', KEY_PREV = 'bm.db.prev', KEY_LANG = 'bm.lang';
 
   // ---------- storage ----------
@@ -84,7 +84,7 @@
     m.innerHTML = '<div class="sheet">' + html + '</div>';
     m.hidden = false;
   }
-  function closeModal() { $('modal').hidden = true; REG.modal = {}; }
+  function closeModal() { const m = $('modal'); m.hidden = true; m.innerHTML = ''; REG.modal = {}; }
   $('modal').addEventListener('click', function (e) { if (e.target.id === 'modal') closeModal(); });
 
   // ---------- navigation ----------
@@ -175,9 +175,9 @@
 
   // ---------- slide-to-confirm ----------
   // Drag the knob all the way right to trigger; it snaps back either way.
-  function slider(region, label, fn) {
+  function slider(region, label, fn, cls) {
     const id = 's' + (++seq); REG[region][id] = fn;
-    return '<div class="slider" data-r="' + region + '" data-s="' + id + '"><span class="slider-label">' + esc(label) + '</span>' +
+    return '<div class="slider' + (cls ? ' ' + cls : '') + '" data-r="' + region + '" data-s="' + id + '"><span class="slider-label">' + esc(label) + '</span>' +
       '<div class="slider-knob" aria-label="' + esc(label) + '">›</div></div>';
   }
   (function () {
@@ -210,6 +210,14 @@
     document.addEventListener('pointerup', end);
     document.addEventListener('pointercancel', end);
   })();
+
+  // A popup whose only way to go ahead is a slide (for deleting / replacing).
+  function confirmSlide(title, text, label, fn) {
+    REG.modal = {};
+    openModal('<h3>' + esc(title) + '</h3><p class="status" style="white-space:pre-line">' + esc(text) + '</p>' +
+      slider('modal', label, function () { closeModal(); fn(); }, 'danger') +
+      '<button class="btn ghost" ' + on('modal', closeModal) + '>' + esc(t('cancel')) + '</button>');
+  }
 
   // ---------- Today ----------
   function backupNotice() {
@@ -255,8 +263,9 @@
       (showName ? '<div class="avatar">' + initial(name(a.customerId)) + '</div>' : '') +
       '<div class="grow"><div>' + main + '</div><div class="small muted">' + sub + '</div></div>' +
       '<button class="x" aria-label="delete" ' + on('main', function () {
-        if (!confirm(t('deleteEntry'))) return;
-        BM.removeAttendance(db, a.id); save(); render();
+        confirmSlide(t('deleteEntryTitle'), name(a.customerId) + '\n' + fmtDate(a.date), t('slideDelete'), function () {
+          BM.removeAttendance(db, a.id); save(); render(); toast(t('deleted'));
+        });
       }) + '>✕</button></div>';
   }
 
@@ -343,8 +352,9 @@
       return '<div class="item"><div class="grow"><div>' + esc(fmtDate(s.date)) + ' <span class="badge none">' + people.length + '</span></div>' +
         '<div class="small muted">' + (people.length ? esc(people.join('、')) : esc(t('nobodyCame'))) + '</div></div>' +
         '<button class="x" aria-label="delete" ' + on('main', function () {
-          if (!confirm(t('deleteClassQ', { d: fmtDate(s.date) }))) return;
-          BM.removeSession(db, s.date); save(); render();
+          confirmSlide(t('deleteClassTitle'), t('deleteClassQ', { d: fmtDate(s.date) }), t('slideDelete'), function () {
+            BM.removeSession(db, s.date); save(); render(); toast(t('deleted'));
+          });
         }) + '>✕</button></div>';
     }).join('') + '</div>';
     return html;
@@ -365,13 +375,13 @@
         save(); closeModal();
         if (!c) { go('customer', { id: target.id }); showQR(target.id); } else render();
       }) + '>' + esc(t('save')) + '</button>' +
-      (c ? '<button class="btn danger" ' + on('modal', function () {
-        if (!confirm(t('deleteCustomerQ', { name: c.name }))) return;
-        db.attendance = db.attendance.filter(function (a) { return a.customerId !== c.id; });
-        db.bundles = db.bundles.filter(function (b) { return b.customerId !== c.id; });
-        db.customers = db.customers.filter(function (x) { return x.id !== c.id; });
-        save(); closeModal(); go('customers');
-      }) + '>' + esc(t('deleteCustomer')) + '</button>' : '') +
+      (c ? '<h2 style="margin-top:22px">' + esc(t('deleteCustomer')) + '</h2><p class="small muted">' + esc(t('deleteCustomerQ', { name: c.name })) + '</p>' +
+        slider('modal', t('slideDelete'), function () {
+          db.attendance = db.attendance.filter(function (a) { return a.customerId !== c.id; });
+          db.bundles = db.bundles.filter(function (b) { return b.customerId !== c.id; });
+          db.customers = db.customers.filter(function (x) { return x.id !== c.id; });
+          save(); closeModal(); go('customers'); toast(t('deleted'));
+        }, 'danger') : '') +
       '<button class="btn ghost" ' + on('modal', closeModal) + '>' + esc(t('cancel')) + '</button>');
     setTimeout(function () { const f = $('ename'); if (f && !c) f.focus(); });
   }
@@ -427,10 +437,10 @@
         BM.updateBundle(db, id, { startDate: $('bstart').value, ticketsTotal: $('btickets').value, maxOpportunities: $('bwindow').value });
         save(); closeModal(); render(); toast(t('saved'));
       }) + '>' + esc(t('save')) + '</button>' +
-      '<button class="btn danger" ' + on('modal', function () {
-        if (!confirm(t('deleteBundleQ', { n: used }))) return;
-        BM.removeBundle(db, id); save(); closeModal(); render();
-      }) + '>' + esc(t('deleteBundle')) + '</button>' +
+      '<h2 style="margin-top:22px">' + esc(t('deleteBundle')) + '</h2><p class="small muted">' + esc(t('deleteBundleQ', { n: used })) + '</p>' +
+      slider('modal', t('slideDelete'), function () {
+        BM.removeBundle(db, id); save(); closeModal(); render(); toast(t('deleted'));
+      }, 'danger') +
       '<button class="btn ghost" ' + on('modal', closeModal) + '>' + esc(t('cancel')) + '</button>');
   }
 
@@ -570,9 +580,10 @@
         inp.remove();
         let next;
         try { next = BM.fromBackup(JSON.parse(txt)); } catch (e) { alert(t('badFile') + '\n(' + e.message + ')'); return; }
-        if (!confirm(t('restoreQ', { c: next.customers.length, a: next.attendance.length }))) return;
-        try { localStorage.setItem('bm.db.beforeRestore', JSON.stringify(db)); } catch (e) { /* ignore */ }
-        db = next; save(); render(); toast(t('restored'));
+        confirmSlide(t('restore'), t('restoreQ', { c: next.customers.length, a: next.attendance.length }), t('slideReplace'), function () {
+          try { localStorage.setItem('bm.db.beforeRestore', JSON.stringify(db)); } catch (e) { /* ignore */ }
+          db = next; save(); render(); toast(t('restored'));
+        });
       }).catch(function (e) { inp.remove(); alert(t('badFile') + '\n(' + (e && e.message) + ')'); });
     };
     inp.addEventListener('change', handle);
