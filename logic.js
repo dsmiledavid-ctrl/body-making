@@ -195,6 +195,51 @@
     db.sessions = db.sessions.filter(function (s) { return s.date !== date; });
   };
 
+  // ---- missed classes ---------------------------------------------------------
+  // Class dates are only saved when someone checks in (or "Start class" is
+  // pressed). If only single-ticket people came, nothing is saved and bundle
+  // windows stop moving. So: when the last saved class (or the last time we
+  // asked) is more than 14 days ago, list the usual class weekday's dates
+  // since then and ask which ones happened.
+
+  function parseISO(s) { const p = s.split('-').map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+  function daysBetween(a, b) { return Math.round((parseISO(b) - parseISO(a)) / 86400000); }
+
+  // The weekday most of the recent classes were on (0 = Sunday).
+  BM.usualWeekday = function (db) {
+    const recent = db.sessions.map(function (s) { return s.date; }).sort().slice(-20);
+    if (!recent.length) return null;
+    const count = [0, 0, 0, 0, 0, 0, 0];
+    recent.forEach(function (d) { count[parseISO(d).getDay()]++; });
+    return count.indexOf(Math.max.apply(null, count));
+  };
+
+  BM.missingClassDates = function (db, today) {
+    today = today || BM.today();
+    if (!db.sessions.length) return [];
+    const last = db.sessions.map(function (s) { return s.date; }).sort().pop();
+    const asked = db.meta.classesAskedThrough || '';
+    const anchor = asked > last ? asked : last;
+    if (daysBetween(anchor, today) <= 14) return [];
+    const wd = BM.usualWeekday(db);
+    const out = [];
+    const d = parseISO(anchor);
+    d.setDate(d.getDate() + 1);
+    while (BM.localISO(d) < today) {
+      if (d.getDay() === wd && !BM.hasSession(db, BM.localISO(d))) out.push(BM.localISO(d));
+      d.setDate(d.getDate() + 1);
+    }
+    return out;
+  };
+
+  // Save the ticked dates; never ask about this stretch again.
+  BM.answerMissingClasses = function (db, ticked, today) {
+    today = today || BM.today();
+    ticked.forEach(function (date) { BM.addSession(db, date); });
+    const y = parseISO(today); y.setDate(y.getDate() - 1);
+    db.meta.classesAskedThrough = BM.localISO(y);
+  };
+
   // ---- export ---------------------------------------------------------------
 
   function csvCell(v) {

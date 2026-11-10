@@ -60,6 +60,20 @@ try:
         pg.click('.list .item >> nth=0'); pg.screenshot(path=f'{shots}/08-customer.png')
         pg.click('#nav button >> nth=0'); pg.click('text=手動でチェックイン'); pg.screenshot(path=f'{shots}/09-manual.png')
         pg.click('#nav button >> nth=2'); pg.click('text=English'); pg.click('#nav button >> nth=0'); pg.screenshot(path=f'{shots}/10-today-en.png')
+        # missed-class reminder: pretend the last saved class was 3 weeks ago
+        pg.evaluate("""() => { const d = JSON.parse(localStorage.getItem('bm.db'));
+            const cut = new Date(Date.now() - 21*86400000).toISOString().slice(0,10);
+            d.sessions = d.sessions.filter(s => s.date <= cut); localStorage.setItem('bm.db', JSON.stringify(d)); }""")
+        pg.reload(); pg.wait_for_selector('#modal:not([hidden]) input[type=checkbox]', timeout=5000)
+        boxes = pg.locator('#modal input[type=checkbox]').count()
+        print('REMINDER: asks about', boxes, 'dates')
+        assert boxes >= 2
+        pg.screenshot(path=f'{shots}/11-reminder.png')
+        pg.locator('#modal input[type=checkbox]').first.check()
+        pg.click('#modal .btn.primary')
+        pg.reload(); pg.wait_for_timeout(500)
+        assert pg.locator('#modal:not([hidden])').count() == 0, 'reminder came back after answering'
+        pg.screenshot(path=f'{shots}/12-today-logo.png')
         b.close()
 finally:
     srv.terminate()

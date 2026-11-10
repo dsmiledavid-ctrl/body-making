@@ -1,9 +1,9 @@
 // Offline support. Network first (so updates arrive as soon as she is online),
 // cached copy when the studio has no signal. Bump CACHE on every release.
-const CACHE = 'bm-1.0.0';
+const CACHE = 'bm-1.1.0';
 const ASSETS = ['./', 'index.html', 'styles.css', 'app.js', 'logic.js', 'i18n.js',
   'vendor/jsQR.js', 'vendor/qrcode.js', 'manifest.webmanifest',
-  'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
+  'icons/logo.png', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));

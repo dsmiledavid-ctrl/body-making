@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.0.0';
+  const APP_VERSION = '1.1.0';
   const KEY_DB = 'bm.db', KEY_PREV = 'bm.db.prev', KEY_LANG = 'bm.lang';
 
   // ---------- storage ----------
@@ -153,7 +153,6 @@
       '<p class="status">' + esc(t('noBundle')) + '</p>' +
       '<button class="btn big primary" ' + act('bundle') + '>' + esc(t('sellBundle')) +
       '<small>' + esc(t('sellBundleSub', { t: db.config.ticketsTotal, p: fmtFt(db.config.bundlePrice) })) + '</small></button>' +
-      '<button class="btn" ' + act('single') + '>' + esc(t('sellSingle')) + '<small>' + esc(t('sellSingleSub', { p: fmtFt(db.config.singlePrice) })) + '</small></button>' +
       '<button class="btn ghost" ' + on(region, ctx.close) + '>' + esc(t('cancel')) + '</button>';
   }
 
@@ -191,7 +190,8 @@
     const todays = db.attendance.filter(function (a) { return a.date === today; })
       .sort(function (x, y) { return (y.ts || '') < (x.ts || '') ? -1 : 1; });
 
-    let html = '<h1>' + esc(fmtDate(today)) + '</h1><p class="sub">' + esc(started ? t('classToday') : t('noClassToday')) + '</p>';
+    let html = '<img class="logo" src="icons/logo.png" alt="Dance &amp; Smile">' +
+      '<h1>' + esc(fmtDate(today)) + '</h1><p class="sub">' + esc(started ? t('classToday') : t('noClassToday')) + '</p>';
     if (!isStandalone()) html += '<div class="notice warn small">' + esc(t('storageUnsafe')) + '</div>';
     html += backupNotice();
     html += '<button class="btn big primary" ' + on('main', function () { BM.addSession(db, today); save(); openScanner(); }) + '>' +
@@ -532,9 +532,35 @@
     $('scanCard').hidden = true; cardOpen = false; lastAt = Date.now();
   }
 
+  // ---------- missed-class reminder ----------
+  // Asked when the app opens and no class was saved for over 2 weeks.
+  function askMissedClasses() {
+    if (scanning || !$('modal').hidden) return;
+    const dates = BM.missingClassDates(db);
+    if (!dates.length) return;
+    REG.modal = {};
+    const last = db.sessions.map(function (x) { return x.date; }).sort().pop();
+    openModal('<h3>' + esc(t('missedTitle')) + '</h3>' +
+      '<p class="status">' + esc(t('missedText', { d: fmtDate(last) })) + '</p>' +
+      '<div class="list">' + dates.map(function (d) {
+        return '<label class="item check"><input type="checkbox" value="' + esc(d) + '"><span class="grow">' + esc(fmtDate(d)) + '</span></label>';
+      }).join('') + '</div><div style="height:14px"></div>' +
+      '<button class="btn primary" ' + on('modal', function () {
+        const ticked = Array.prototype.map.call(document.querySelectorAll('#modal input[type=checkbox]:checked'), function (i) { return i.value; });
+        BM.answerMissingClasses(db, ticked); save(); closeModal(); render();
+        toast(t('missedSaved', { n: ticked.length }));
+      }) + '>' + esc(t('save')) + '<small>' + esc(t('missedNone')) + '</small></button>' +
+      '<button class="btn ghost" ' + on('modal', closeModal) + '>' + esc(t('later')) + '</button>');
+  }
+
   // ---------- boot ----------
   document.documentElement.lang = lang;
   render();
+  askMissedClasses();
+  // iPhone home-screen apps resume instead of reloading, so ask on resume too.
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible') { render(); askMissedClasses(); }
+  });
 
   if (navigator.storage && navigator.storage.persist) {
     navigator.storage.persisted().then(function (p) { if (!p) navigator.storage.persist(); }).catch(function () {});

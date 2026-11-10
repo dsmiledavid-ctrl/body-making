@@ -3,7 +3,10 @@
 _Last updated 2026-11-10 (session 1, from the Office desk)._
 
 ## Where it stands
-- v1.0.0 built and tested (8 rule tests + full browser run with fake camera: scan → check in →
+- v1.1.0 (2026-11-10): castle logo + icons, single-ticket button removed (Imre: Marei never enters singles),
+  missed-class reminder (no class saved >14 days → tick which usual-weekday dates happened; asked on open).
+- Tested: 12 rule tests + full browser run with fake camera (scan → check in → rescan "already checked in",
+  reload persistence, reminder appears + stays answered).
   rescan shows "already checked in", data survives reload).
 - Hosting: GitHub Pages, public repo `dsmiledavid-ctrl/body-making`.
 - NOT yet on Marei's phone. AppSheet still the live system.

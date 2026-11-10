@@ -75,4 +75,40 @@ t('garbage backup is refused', function () {
   assert.throws(function () { BM.fromBackup(null); });
 });
 
+t('no reminder when last class is within 2 weeks', function () {
+  const db = BM.emptyDB();
+  BM.addSession(db, '2026-11-04');
+  assert.deepStrictEqual(BM.missingClassDates(db, '2026-11-18'), []);
+});
+
+t('reminder lists the usual weekday after 2 weeks', function () {
+  const db = BM.emptyDB();
+  ['2026-10-14', '2026-10-21', '2026-10-28', '2026-11-04'].forEach(function (d) { BM.addSession(db, d); }); // Wednesdays
+  // Thursday 19 Nov: 15 days after 4 Nov -> ask about Wed 11 and Wed 18
+  assert.deepStrictEqual(BM.missingClassDates(db, '2026-11-19'), ['2026-11-11', '2026-11-18']);
+  // today itself is never asked about (she can just start class)
+  assert.deepStrictEqual(BM.missingClassDates(db, '2026-11-25'), ['2026-11-11', '2026-11-18']);
+});
+
+t('answering (even with nothing ticked) stops the question for that stretch', function () {
+  const db = BM.emptyDB();
+  ['2026-10-28', '2026-11-04'].forEach(function (d) { BM.addSession(db, d); });
+  BM.answerMissingClasses(db, ['2026-11-11'], '2026-11-19');
+  assert.ok(BM.hasSession(db, '2026-11-11'));
+  assert.ok(!BM.hasSession(db, '2026-11-18'));
+  assert.deepStrictEqual(BM.missingClassDates(db, '2026-11-26'), []);
+  // two more silent weeks -> asks again, only about the new days
+  assert.deepStrictEqual(BM.missingClassDates(db, '2026-12-04'), ['2026-11-25', '2026-12-02']);
+});
+
+t('ticked class dates count against bundle windows', function () {
+  const db = BM.emptyDB();
+  const c = BM.addCustomer(db, 'A', '');
+  BM.addSession(db, '2026-11-04');
+  db.bundles.push({ id: 'b', customerId: c.id, startDate: '2026-11-04', ticketsTotal: 10, maxOpportunities: 12 });
+  const before = BM.bundleStats(db, db.bundles[0], '2026-11-19').oppUsed;
+  BM.answerMissingClasses(db, ['2026-11-11', '2026-11-18'], '2026-11-19');
+  assert.strictEqual(BM.bundleStats(db, db.bundles[0], '2026-11-19').oppUsed, before + 2);
+});
+
 console.log(n + ' tests passed');

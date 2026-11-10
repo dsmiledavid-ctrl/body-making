@@ -167,3 +167,7 @@ label { display: block; font-size: 14px; color: var(--muted); margin: 12px 2px 6
   display: flex; gap: 14px; align-items: center; box-shadow: var(--shadow); max-width: 92vw;
 }
 .toast button { border: 0; background: none; color: #ffb7cd; font-weight: 700; cursor: pointer; }
+
+.logo { display: block; height: 72px; width: auto; margin: 0 0 6px -4px; }
+.item.check { cursor: pointer; }
+.item.check input { width: 24px; height: 24px; accent-color: var(--accent); flex: none; }
