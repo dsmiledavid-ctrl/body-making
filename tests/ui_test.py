@@ -1,0 +1,67 @@
+"""Browser test with a fake camera. Usage:
+  python3 tests/ui_test.py <import.json> <customer-id-to-scan> <fake.y4m> <shots-dir>
+Serves the app locally, restores the backup, scans the fake QR, checks in."""
+import json, subprocess, sys, time, os
+from playwright.sync_api import sync_playwright
+
+imp, cid, y4m, shots = sys.argv[1:5]
+root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8765', '--bind', '127.0.0.1'], cwd=root,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+time.sleep(1)
+errors = []
+try:
+    with sync_playwright() as p:
+        b = p.chromium.launch(args=['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
+                                    f'--use-file-for-fake-video-capture={y4m}'])
+        ctx = b.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=2,
+                            permissions=['camera'], is_mobile=True, has_touch=True)
+        pg = ctx.new_page()
+        pg.on('pageerror', lambda e: errors.append(str(e)))
+        pg.on('console', lambda m: m.type == 'error' and errors.append(m.text))
+        pg.on('dialog', lambda d: d.accept())
+        pg.goto('http://127.0.0.1:8765/')
+        pg.screenshot(path=f'{shots}/01-empty.png')
+        # restore backup through the real UI
+        pg.click('text=設定')
+        with pg.expect_file_chooser() as fc:
+            pg.click('text=バックアップから復元')
+        fc.value.set_files(imp)
+        pg.wait_for_timeout(500)
+        n = pg.evaluate('window.__bm.db.customers.length')
+        assert n > 0, 'restore failed'
+        pg.click('text=今日')
+        pg.screenshot(path=f'{shots}/02-today.png')
+        before = pg.evaluate('window.__bm.db.attendance.length')
+        pg.click('.btn.big.primary')
+        pg.wait_for_selector('#scanCard:not([hidden])', timeout=10000)
+        pg.screenshot(path=f'{shots}/03-scanned.png')
+        card = pg.inner_text('#scanCard')
+        print('CARD:', card.replace('\n', ' | '))
+        pg.click('#scanCard .btn.big')
+        pg.wait_for_timeout(300)
+        pg.screenshot(path=f'{shots}/04-success.png')
+        after = pg.evaluate('window.__bm.db.attendance.length')
+        assert after == before + 1, f'check-in not saved {before}->{after}'
+        # same card again: must show "already checked in", never a dead end
+        pg.wait_for_timeout(6500)
+        pg.wait_for_selector('#scanCard:not([hidden])', timeout=10000)
+        again = pg.inner_text('#scanCard')
+        print('RESCAN:', again.replace('\n', ' | '))
+        assert '済み' in again
+        pg.screenshot(path=f'{shots}/05-rescan.png')
+        pg.click('#scanCard .btn')
+        pg.click('#scanClose')
+        pg.screenshot(path=f'{shots}/06-today-after.png')
+        # persisted across reload
+        pg.reload(); pg.wait_for_timeout(500)
+        assert pg.evaluate('window.__bm.db.attendance.length') == after, 'not persisted'
+        pg.click('text=お客様'); pg.screenshot(path=f'{shots}/07-customers.png')
+        pg.click('.list .item >> nth=0'); pg.screenshot(path=f'{shots}/08-customer.png')
+        pg.click('#nav button >> nth=0'); pg.click('text=手動でチェックイン'); pg.screenshot(path=f'{shots}/09-manual.png')
+        pg.click('#nav button >> nth=2'); pg.click('text=English'); pg.click('#nav button >> nth=0'); pg.screenshot(path=f'{shots}/10-today-en.png')
+        b.close()
+finally:
+    srv.terminate()
+print('errors:', errors or 'none')
+print('UI TEST PASSED' if not errors else 'UI TEST HAD ERRORS')

@@ -1,0 +1,8 @@
+# Customer data must never enter this public repo.
+/*.json
+!/package.json
+*.xlsx
+*.csv
+data/
+node_modules/
+__pycache__/

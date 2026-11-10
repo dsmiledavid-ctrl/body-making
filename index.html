@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Body Making</title>
+  <meta name="theme-color" content="#f7f1ee">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Body Making">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="app"></main>
+  <nav id="nav" class="nav"></nav>
+
+  <!-- full-screen scanner -->
+  <section id="scanner" class="scanner" hidden>
+    <video id="video" playsinline muted autoplay></video>
+    <canvas id="canvas" hidden></canvas>
+    <div class="scan-frame"></div>
+    <div class="scan-top">
+      <button id="scanClose" class="pill">✕</button>
+      <span id="scanHint" class="scan-hint"></span>
+    </div>
+    <div id="scanCard" class="sheet" hidden></div>
+  </section>
+
+  <div id="modal" class="modal" hidden></div>
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="vendor/jsQR.js"></script>
+  <script src="vendor/qrcode.js"></script>
+  <script src="i18n.js"></script>
+  <script src="logic.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
