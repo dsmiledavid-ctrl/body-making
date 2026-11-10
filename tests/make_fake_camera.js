@@ -1,10 +1,10 @@
 // Writes a .y4m video of a QR code (fake camera for the browser test).
-// Usage: node tests/make_fake_camera.js <text> <out.y4m>
+// Usage: node tests/make_fake_camera.js <text> <out.y4m> [width height qrPixels]
 const fs = require('fs');
 const qrcode = require('../vendor/qrcode.js');
-const [text, out] = process.argv.slice(2);
+const [text, out, aw, ah, aq] = process.argv.slice(2);
 const q = qrcode(0, 'M'); q.addData(text); q.make();
-const W = 640, H = 480, n = q.getModuleCount(), cell = Math.floor(300 / n);
+const W = Number(aw) || 640, H = Number(ah) || 480, n = q.getModuleCount(), cell = Math.max(1, Math.floor((Number(aq) || 300) / n));
 const ox = Math.floor((W - n * cell) / 2), oy = Math.floor((H - n * cell) / 2);
 const Y = Buffer.alloc(W * H, 235);
 for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c))

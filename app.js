@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.3.0';
+  const APP_VERSION = '1.4.0';
   const KEY_DB = 'bm.db', KEY_PREV = 'bm.db.prev', KEY_LANG = 'bm.lang';
 
   // ---------- storage ----------
@@ -173,6 +173,44 @@
     return '<span class="badge none">' + esc(t('noBundleShort')) + '</span>';
   }
 
+  // ---------- slide-to-confirm ----------
+  // Drag the knob all the way right to trigger; it snaps back either way.
+  function slider(region, label, fn) {
+    const id = 's' + (++seq); REG[region][id] = fn;
+    return '<div class="slider" data-r="' + region + '" data-s="' + id + '"><span class="slider-label">' + esc(label) + '</span>' +
+      '<div class="slider-knob" aria-label="' + esc(label) + '">›</div></div>';
+  }
+  (function () {
+    let drag = null;
+    document.addEventListener('pointerdown', function (e) {
+      const knob = e.target.closest('.slider-knob'); if (!knob) return;
+      const track = knob.parentNode;
+      drag = { knob: knob, track: track, x0: e.clientX, max: track.clientWidth - knob.offsetWidth - 8 };
+      knob.style.transition = 'none'; track.classList.add('dragging');
+      try { knob.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+      e.preventDefault();
+    });
+    document.addEventListener('pointermove', function (e) {
+      if (!drag) return;
+      const dx = Math.max(0, Math.min(drag.max, e.clientX - drag.x0));
+      drag.knob.style.transform = 'translateX(' + dx + 'px)';
+      drag.track.style.setProperty('--p', (dx / drag.max).toFixed(3));
+      drag.dx = dx;
+    });
+    function end() {
+      if (!drag) return;
+      const d = drag; drag = null;
+      d.knob.style.transition = 'transform .25s ease'; d.knob.style.transform = 'translateX(0)';
+      d.track.style.setProperty('--p', 0); d.track.classList.remove('dragging');
+      if ((d.dx || 0) >= d.max * 0.92) {
+        const fn = REG[d.track.dataset.r] && REG[d.track.dataset.r][d.track.dataset.s];
+        if (fn) setTimeout(fn, 120);
+      }
+    }
+    document.addEventListener('pointerup', end);
+    document.addEventListener('pointercancel', end);
+  })();
+
   // ---------- Today ----------
   function backupNotice() {
     const last = db.meta.lastBackup;
@@ -197,8 +235,10 @@
       '<h1>' + esc(fmtDate(today)) + '</h1><p class="sub">' + esc(started ? t('classToday') : t('noClassToday')) + '</p>';
     if (!isStandalone()) html += '<div class="notice warn small">' + esc(t('storageUnsafe')) + '</div>';
     html += backupNotice();
-    html += '<button class="btn big primary" ' + on('main', function () { BM.addSession(db, today); save(); openScanner(); }) + '>' +
-      esc(started ? t('scan') : t('startClass')) + '</button>';
+    // Starting a class saves a class date (it uses up everyone's bundle
+    // window), so it is a slide, not a tap. Once started, Scan is a tap.
+    if (started) html += '<button class="btn big primary" ' + on('main', function () { openScanner(); }) + '>' + esc(t('scan')) + '</button>';
+    else html += slider('main', t('slideStart'), function () { BM.addSession(db, today); save(); openScanner(); });
     html += '<button class="btn" ' + on('main', function () { go('manual', { date: today }); }) + '>' + esc(t('byHand')) + '</button>';
 
     html += '<h2>' + esc(t('checkedInToday', { n: todays.length })) + '</h2>';
@@ -592,13 +632,17 @@
 
   function openScanner(practiceMode) {
     practice = !!practiceMode;
+    unlockAudio();
+    frameNo = 0; noVideoSince = 0;
+    const d = $('scanDiag'); if (d) d.hidden = true;
+    if (practice) setDiag(t('diagStarting'));
     $('toast').hidden = true;
     $('scanner').hidden = false;
     $('scanner').classList.toggle('practice', practice);
     $('scanHint').textContent = practice ? t('practiceHint') : t('pointCamera');
     hideCard();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showCameraError(); return; }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false })
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
       .then(function (s) {
         stream = s;
         const v = $('video'); v.srcObject = s;
@@ -621,23 +665,68 @@
   }
   $('scanClose').onclick = closeScanner;
 
+  // Each frame alternates between two looks at the picture:
+  //  even frames: the middle of the picture at full detail (a card held
+  //               20-30 cm away, which is as close as iPhones can focus);
+  //  odd frames:  the whole picture, scaled down (a card held close / big).
+  let frameNo = 0, noVideoSince = 0;
   function tick() {
     if (!scanning) return;
-    loopTimer = setTimeout(tick, 140);
+    loopTimer = setTimeout(tick, 110);
     if (cardOpen) return;
     const v = $('video');
-    if (!v.videoWidth) return;
-    const cv = $('canvas'), scale = Math.min(1, 640 / v.videoWidth);
-    const w = Math.round(v.videoWidth * scale), h = Math.round(v.videoHeight * scale);
-    cv.width = w; cv.height = h;
+    if (!v.videoWidth) {
+      if (!noVideoSince) noVideoSince = Date.now();
+      if (Date.now() - noVideoSince > 4000) setDiag(t('diagNoVideo'));
+      return;
+    }
+    noVideoSince = 0;
+    frameNo++;
+    const vw = v.videoWidth, vh = v.videoHeight;
+    let sx = 0, sy = 0, sw = vw, sh = vh;
+    if (frameNo % 2 === 0) {
+      const side = Math.round(Math.min(vw, vh) * 0.7);
+      sx = Math.round((vw - side) / 2); sy = Math.round((vh - side) / 2); sw = sh = side;
+    }
+    const scale = Math.min(1, 800 / Math.max(sw, sh));
+    const w = Math.round(sw * scale), h = Math.round(sh * scale);
+    const cv = $('canvas');
+    if (cv.width !== w) cv.width = w;
+    if (cv.height !== h) cv.height = h;
     const ctx = cv.getContext('2d', { willReadFrequently: true });
-    ctx.drawImage(v, 0, 0, w, h);
-    const res = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: 'dontInvert' });
+    ctx.drawImage(v, sx, sy, sw, sh, 0, 0, w, h);
+    const res = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: frameNo % 4 < 2 ? 'dontInvert' : 'attemptBoth' });
+    if (practice && frameNo % 5 === 0) setDiag(t('diagRunning', { w: vw, h: vh, n: frameNo }));
     if (!res || !res.data) return;
     const code = res.data.trim();
     if (code === lastCode && Date.now() - lastAt < 3000) return;
     lastCode = code; lastAt = Date.now();
+    found();
+    if (practice) setDiag(t('diagFound', { code: code.length > 24 ? code.slice(0, 24) + '…' : code }));
     onScan(code);
+  }
+
+  function setDiag(text) { const d = $('scanDiag'); if (d) { d.textContent = text; d.hidden = false; } }
+
+  // Beep + green flash when a code is read. (The beep is silent if the
+  // iPhone's ring/silent switch is on silent; the flash always shows.)
+  let audio = null;
+  function unlockAudio() {
+    try {
+      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+      if (audio.state === 'suspended') audio.resume();
+    } catch (e) { audio = null; }
+  }
+  function found() {
+    const f = document.querySelector('.scan-frame');
+    if (f) { f.classList.remove('hit'); void f.offsetWidth; f.classList.add('hit'); }
+    if (!audio) return;
+    try {
+      const o = audio.createOscillator(), g = audio.createGain();
+      o.frequency.value = 1320; g.gain.value = 0.15;
+      o.connect(g); g.connect(audio.destination);
+      o.start(); o.stop(audio.currentTime + 0.12);
+    } catch (e) { /* ignore */ }
   }
 
   function onScan(code) {

@@ -20,6 +20,11 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   greeting), Japanese/English choice, Copy + share. Bundle counts now ignore check-ins of another customer:
   the AppSheet data had ONE such row (a 2026-09-30 check-in linked to a different customer's bundle; IDs had
   been hand-typed). Verified: no effect on anyone's tickets left, so the row was left as is.
+- v1.4.0 (2026-11-11): Imre's first real-iPhone camera test: camera opened, QR shown, NOTHING happened (no read).
+  Cause UNKNOWN. Changes: alternate full-detail centre crop / whole frame, inversion tries, 1920x1080 request,
+  beep + green flash on read, practice-mode counter (camera size + frames checked) to diagnose, hint "20-30 cm".
+  NOTE: the previous version ALSO read a synthetic far-away card in the browser test, so the test does not prove
+  the fix; real blur/focus can't be simulated. Next real test decides. Slide-to-start-class added (tap does nothing).
 - PROPOSED, not built: payment step when selling a bundle (cash / bank transfer details / Revolut) — waiting on Imre's answers.
 
 ## Why it exists (Imre, 2026-11-10)

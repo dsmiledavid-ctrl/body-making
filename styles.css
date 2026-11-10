@@ -185,3 +185,29 @@ textarea.report {
   width: 100%; min-height: 220px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
   background: #f7fbff; font: 15px/1.5 inherit; font-family: inherit; resize: vertical; margin-bottom: 12px;
 }
+
+/* scanner feedback */
+.scan-frame.hit { animation: hit .6s ease-out; }
+@keyframes hit { 0% { border-color: #3ddc84; box-shadow: 0 0 0 9999px rgba(0,0,0,.38), 0 0 0 8px rgba(61,220,132,.6) inset; } 100% { } }
+.scan-diag {
+  position: absolute; left: 12px; right: 12px; top: calc(64px + var(--safe-t));
+  color: #fff; font-size: 13px; text-shadow: 0 1px 3px rgba(0,0,0,.7); font-variant-numeric: tabular-nums;
+}
+
+/* slide-to-confirm */
+.slider {
+  --p: 0; position: relative; height: 76px; border-radius: 18px; overflow: hidden;
+  background: var(--important); color: #fff; user-select: none; -webkit-user-select: none; touch-action: none;
+  margin-bottom: 10px;
+}
+.slider::before { content: ''; position: absolute; inset: 0; background: rgba(255,255,255,.18); transform-origin: left; transform: scaleX(var(--p)); }
+.slider-label {
+  position: absolute; inset: 0; display: grid; place-items: center; padding-left: 64px;
+  font-size: 19px; font-weight: 700; opacity: calc(1 - var(--p) * 1.4);
+}
+.slider-knob {
+  position: absolute; left: 4px; top: 4px; width: 68px; height: 68px; border-radius: 14px;
+  background: #fff; color: var(--important); display: grid; place-items: center;
+  font-size: 34px; font-weight: 700; cursor: grab; touch-action: none; box-shadow: 0 2px 8px rgba(0,0,0,.2);
+}
+.slider.danger { background: var(--danger); }

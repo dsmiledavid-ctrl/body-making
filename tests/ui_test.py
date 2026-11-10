@@ -10,6 +10,16 @@ srv = subprocess.Popen([sys.executable, '-m', 'http.server', '8765', '--bind', '
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(1)
 errors = []
+
+def slide(pg, sel):
+    box = pg.locator(sel + ' .slider-knob').bounding_box()
+    track = pg.locator(sel).bounding_box()
+    pg.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+    pg.mouse.down()
+    for k in range(1, 11):
+        pg.mouse.move(box['x'] + box['width'] / 2 + (track['width'] - box['width']) * k / 10, box['y'] + box['height'] / 2)
+    pg.mouse.up()
+
 try:
     with sync_playwright() as p:
         b = p.chromium.launch(args=['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
@@ -43,7 +53,10 @@ try:
         pg.click('#nav button >> nth=0')
         pg.screenshot(path=f'{shots}/02-today.png')
         before = pg.evaluate('window.__bm.db.attendance.length')
-        pg.click('.btn.big.primary')
+        # a short tap/drag must NOT start the class
+        pg.click('.slider .slider-knob'); pg.wait_for_timeout(400)
+        assert pg.locator('#scanner[hidden]').count() == 1, 'tap started the class!'
+        slide(pg, '.slider')
         pg.wait_for_selector('#scanCard:not([hidden])', timeout=10000)
         pg.screenshot(path=f'{shots}/03-scanned.png')
         card = pg.inner_text('#scanCard')
