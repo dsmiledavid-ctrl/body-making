@@ -180,3 +180,8 @@ label { display: block; font-size: 14px; color: var(--muted); margin: 12px 2px 6
 .badge.warn { background: var(--warn-soft); color: var(--warn); }
 .scanner.practice .scan-frame { border-color: #ffd34d; }
 .scanner.practice .scan-hint { color: #ffd34d; }
+
+textarea.report {
+  width: 100%; min-height: 220px; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px;
+  background: #f7fbff; font: 15px/1.5 inherit; font-family: inherit; resize: vertical; margin-bottom: 12px;
+}

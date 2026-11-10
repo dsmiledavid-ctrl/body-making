@@ -16,6 +16,10 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
 - v1.2.0 (2026-11-10): blue theme (light-blue page, dark-blue buttons, red = main action; Marei's ask via Imre),
   practice scan in Settings (saves nothing), clear Edit button, sell bundle without check-in, edit/extend/delete
   a bundle, add class date by hand, Customers tab now has 3 views: People · Bundles (soonest to end) · Classes.
+- v1.3.0 (2026-11-11): "Send usage report" on each customer page — numbers only (Imre: Marei writes the
+  greeting), Japanese/English choice, Copy + share. Bundle counts now ignore check-ins of another customer:
+  the AppSheet data had ONE such row (a 2026-09-30 check-in linked to a different customer's bundle; IDs had
+  been hand-typed). Verified: no effect on anyone's tickets left, so the row was left as is.
 - PROPOSED, not built: payment step when selling a bundle (cash / bank transfer details / Revolut) — waiting on Imre's answers.
 
 ## Why it exists (Imre, 2026-11-10)

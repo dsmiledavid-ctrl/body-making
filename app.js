@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.2.0';
+  const APP_VERSION = '1.3.0';
   const KEY_DB = 'bm.db', KEY_PREV = 'bm.db.prev', KEY_LANG = 'bm.lang';
 
   // ---------- storage ----------
@@ -41,12 +41,13 @@
     return String(s === null || s === undefined ? '' : s)
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
-  function fmtDate(iso) {
+  function fmtDate(iso, inLang) {
+    const L = inLang || lang;
     const p = iso.split('-').map(Number);
     const d = new Date(p[0], p[1] - 1, p[2]);
-    const wd = t('days')[d.getDay()];
-    if (lang === 'ja') return (p[1]) + '月' + p[2] + '日（' + wd + '）';
-    const mon = d.toLocaleString('en-GB', { month: 'short' });
+    const wd = I18N[L].days[d.getDay()];
+    if (L === 'ja') return (p[1]) + '月' + p[2] + '日（' + wd + '）';
+    const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()];
     return wd + ' ' + p[2] + ' ' + mon + (p[0] !== new Date().getFullYear() ? ' ' + p[0] : '');
   }
   function fmtFt(n) { return Number(n || 0).toLocaleString('hu-HU'); }
@@ -354,6 +355,7 @@
       const b = BM.sellBundle(db, c.id, today); save(); render();
       toast(t('bundleSold', { name: c.name }), function () { BM.removeBundle(db, b.id); save(); render(); });
     }) + '>' + esc(t('sellOnly')) + '<small>' + esc(t('sellOnlySub', { t: db.config.ticketsTotal, p: fmtFt(db.config.bundlePrice) })) + '</small></button>';
+    html += '<button class="btn soft" ' + on('main', function () { showReport(c.id); }) + '>' + esc(t('report')) + '<small>' + esc(t('reportSub')) + '</small></button>';
 
     const bundles = BM.customerBundles(db, c.id).reverse();
     html += '<h2>' + esc(t('bundles')) + '</h2>';
@@ -390,6 +392,64 @@
         BM.removeBundle(db, id); save(); closeModal(); render();
       }) + '>' + esc(t('deleteBundle')) + '</button>' +
       '<button class="btn ghost" ' + on('modal', closeModal) + '>' + esc(t('cancel')) + '</button>');
+  }
+
+  // ---------- usage report text (numbers only; Marei writes the greeting) ----------
+  function reportText(cid, L) {
+    const r = BM.usageReport(db, cid);
+    const T = I18N[L];
+    if (!r) return T.rNoBundle;
+    const fill = function (s, v) { Object.keys(v).forEach(function (k) { s = s.split('{' + k + '}').join(v[k]); }); return s; };
+    const lines = [
+      fill(T.rBundle, { t: r.bundle.ticketsTotal, d: fmtDate(r.bundle.startDate, L) }),
+      fill(T.rLeft, { n: r.stats.ticketsLeft }),
+      fill(T.rWindow, { n: Math.max(0, r.stats.oppLeft) }),
+      '',
+      fill(T.rCame, { n: r.came.length })
+    ];
+    r.came.forEach(function (d) { lines.push(T.rBullet + fmtDate(d, L)); });
+    lines.push('', fill(T.rMissed, { n: r.missed.length }));
+    r.missed.forEach(function (d) { lines.push(T.rBullet + fmtDate(d, L)); });
+    if (!r.missed.length) lines.push(T.rNone);
+    return lines.join('\n');
+  }
+
+  function showReport(cid) {
+    let L = 'ja';
+    try { L = localStorage.getItem('bm.reportLang') || 'ja'; } catch (e) { /* ignore */ }
+    const draw = function () {
+      REG.modal = {};
+      const text = reportText(cid, L);
+      openModal('<h3>' + esc(name(cid)) + '</h3>' +
+        '<div class="seg" style="margin:10px 0">' + ['ja', 'en'].map(function (l) {
+          return '<button class="' + (L === l ? 'on' : '') + '" ' + on('modal', function () {
+            L = l; try { localStorage.setItem('bm.reportLang', l); } catch (e) { /* ignore */ }
+            draw();
+          }) + '>' + (l === 'ja' ? '日本語' : 'English') + '</button>';
+        }).join('') + '</div>' +
+        '<textarea id="rtext" class="report" readonly>' + esc(text) + '</textarea>' +
+        '<div class="grid2">' +
+        '<button class="btn primary" ' + on('modal', function () { copyText(text); }) + '>' + esc(t('copy')) + '</button>' +
+        '<button class="btn" ' + on('modal', function () {
+          if (navigator.share) navigator.share({ text: text }).catch(function () {}); else copyText(text);
+        }) + '>' + esc(t('shareText')) + '</button></div>' +
+        '<button class="btn ghost" ' + on('modal', closeModal) + '>' + esc(t('close')) + '</button>');
+    };
+    draw();
+  }
+
+  function copyText(text) {
+    const ok = function () { toast(t('copied')); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok).catch(function () { fallbackCopy(text) && ok(); });
+    } else if (fallbackCopy(text)) ok();
+  }
+  function fallbackCopy(text) {
+    const ta = $('rtext') || document.createElement('textarea');
+    if (!ta.parentNode) { ta.value = text; document.body.appendChild(ta); }
+    ta.removeAttribute('readonly'); ta.select(); ta.setSelectionRange(0, text.length);
+    let done = false; try { done = document.execCommand('copy'); } catch (e) { /* ignore */ }
+    ta.setAttribute('readonly', ''); return done;
   }
 
   // ---------- QR cards ----------

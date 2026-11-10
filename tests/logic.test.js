@@ -131,4 +131,26 @@ t('bundles overview: soonest to run out first', function () {
   assert.deepStrictEqual(BM.activeBundles(db, today).map(function (x) { return x.customer.name; }), ['Z', 'A']);
 });
 
+t('usage report: came vs missed in the current bundle', function () {
+  const db = BM.emptyDB();
+  const c = BM.addCustomer(db, 'A', '');
+  ['2026-10-07', '2026-10-14', '2026-10-21'].forEach(function (d) { BM.addSession(db, d); });
+  db.bundles.push({ id: 'b', customerId: c.id, startDate: '2026-10-07', ticketsTotal: 10, maxOpportunities: 12 });
+  db.attendance.push({ id: 'x', date: '2026-10-07', customerId: c.id, type: 'Bundle', bundleId: 'b' });
+  db.attendance.push({ id: 'y', date: '2026-10-21', customerId: c.id, type: 'Bundle', bundleId: 'b' });
+  BM.addSession(db, '2026-10-28'); // today, not checked in yet -> not "missed"
+  const r = BM.usageReport(db, c.id, '2026-10-28');
+  assert.deepStrictEqual(r.came, ['2026-10-07', '2026-10-21']);
+  assert.deepStrictEqual(r.missed, ['2026-10-14']);
+  assert.strictEqual(r.stats.ticketsLeft, 8);
+});
+
+t("a check-in linked to someone else's bundle does not use its tickets", function () {
+  const db = BM.emptyDB();
+  const a = BM.addCustomer(db, 'A', ''), b = BM.addCustomer(db, 'B', '');
+  db.bundles.push({ id: 'ba', customerId: a.id, startDate: '2026-10-01', ticketsTotal: 10, maxOpportunities: 12 });
+  db.attendance.push({ id: 'x', date: '2026-10-07', customerId: b.id, type: 'Bundle', bundleId: 'ba' });
+  assert.strictEqual(BM.bundleStats(db, db.bundles[0], '2026-10-08').attended, 0);
+});
+
 console.log(n + ' tests passed');

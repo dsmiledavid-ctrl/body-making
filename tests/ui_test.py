@@ -74,6 +74,12 @@ try:
         pg.fill('#bwindow', '14'); pg.click('#modal .btn.primary'); pg.wait_for_timeout(200)
         assert '14' in pg.inner_text('#app'), 'bundle extend not shown'
         pg.screenshot(path=f'{shots}/08b-customer-after-edit.png')
+        pg.click('text=利用状況を送る'); pg.wait_for_selector('#rtext')
+        print('REPORT JA:', pg.input_value('#rtext').replace('\n', ' / ')[:160])
+        pg.screenshot(path=f'{shots}/08c-report.png')
+        pg.click('#modal .seg button >> nth=1')
+        print('REPORT EN:', pg.input_value('#rtext').replace('\n', ' / ')[:160])
+        pg.click('#modal .btn.ghost')
         pg.click('#nav button >> nth=0'); pg.click('text=手動でチェックイン'); pg.screenshot(path=f'{shots}/09-manual.png')
         pg.click('#nav button >> nth=2'); pg.click('text=English'); pg.click('#nav button >> nth=0'); pg.screenshot(path=f'{shots}/10-today-en.png')
         # missed-class reminder: pretend the last saved class was 3 weeks ago

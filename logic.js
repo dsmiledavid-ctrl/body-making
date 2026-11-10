@@ -72,12 +72,14 @@
 
   BM.bundleStats = function (db, b, today) {
     today = today || BM.today();
-    const attended = db.attendance.filter(function (a) { return a.bundleId === b.id; }).length;
+    // Only the owner's check-ins count (the AppSheet data had one row linked to
+    // another customer's bundle).
+    const attended = db.attendance.filter(function (a) { return a.bundleId === b.id && a.customerId === b.customerId; }).length;
     const passedClasses = db.sessions.filter(function (s) {
       return s.date >= b.startDate && s.date < today;
     }).length;
     const attendedToday = db.attendance.some(function (a) {
-      return a.bundleId === b.id && a.date === today;
+      return a.bundleId === b.id && a.customerId === b.customerId && a.date === today;
     });
     const oppUsed = passedClasses + (attendedToday ? 1 : 0);
     const ticketsLeft = Math.min(b.ticketsTotal - attended, b.maxOpportunities - oppUsed);
@@ -219,6 +221,24 @@
 
   BM.removeSession = function (db, date) {
     db.sessions = db.sessions.filter(function (s) { return s.date !== date; });
+  };
+
+  // ---- usage report (for the customer) ----------------------------------------
+  // Current bundle (or the latest one), the class dates they came to and the
+  // ones they missed since it started. Today counts only if they came.
+  BM.usageReport = function (db, customerId, today) {
+    today = today || BM.today();
+    const list = BM.customerBundles(db, customerId);
+    const bundle = BM.activeBundle(db, customerId, today) || list[list.length - 1] || null;
+    if (!bundle) return null;
+    const mine = db.attendance.filter(function (a) { return a.customerId === customerId; });
+    const came = mine.filter(function (a) { return a.bundleId === bundle.id; })
+      .map(function (a) { return a.date; }).sort();
+    const attendedOn = {};
+    mine.forEach(function (a) { attendedOn[a.date] = true; });
+    const missed = db.sessions.map(function (s) { return s.date; })
+      .filter(function (d) { return d >= bundle.startDate && d < today && !attendedOn[d]; }).sort();
+    return { bundle: bundle, stats: BM.bundleStats(db, bundle, today), came: came, missed: missed };
   };
 
   // ---- missed classes ---------------------------------------------------------
