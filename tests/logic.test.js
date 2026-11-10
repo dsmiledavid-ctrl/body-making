@@ -111,4 +111,24 @@ t('ticked class dates count against bundle windows', function () {
   assert.strictEqual(BM.bundleStats(db, db.bundles[0], '2026-11-19').oppUsed, before + 2);
 });
 
+t('sell bundle without check-in, then edit and extend it', function () {
+  const db = BM.emptyDB();
+  const c = BM.addCustomer(db, 'A', '');
+  const b = BM.sellBundle(db, c.id, today);
+  assert.strictEqual(BM.status(db, c.id, today).state, 'bundle');
+  assert.strictEqual(db.attendance.length, 0);
+  BM.updateBundle(db, b.id, { maxOpportunities: 15, ticketsTotal: 8 });
+  assert.strictEqual(db.bundles[0].maxOpportunities, 15);
+  assert.strictEqual(BM.bundleStats(db, b, today).ticketsLeft, 8);
+});
+
+t('bundles overview: soonest to run out first', function () {
+  const db = BM.emptyDB();
+  const a = BM.addCustomer(db, 'A', ''), z = BM.addCustomer(db, 'Z', '');
+  BM.sellBundle(db, a.id, today);
+  const bz = BM.sellBundle(db, z.id, today);
+  BM.updateBundle(db, bz.id, { ticketsTotal: 2 });
+  assert.deepStrictEqual(BM.activeBundles(db, today).map(function (x) { return x.customer.name; }), ['Z', 'A']);
+});
+
 console.log(n + ' tests passed');

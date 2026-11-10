@@ -167,9 +167,8 @@
     return a;
   };
 
-  // Sells a bundle starting on `date` and checks the customer in with it.
-  BM.sellBundleAndCheckIn = function (db, customerId, date, opts) {
-    if (BM.checkedInOn(db, customerId, date)) throw new Error('already checked in');
+  // Sells a bundle starting on `date` (no check-in), e.g. paid in advance.
+  BM.sellBundle = function (db, customerId, date) {
     const b = {
       id: BM.newId(), customerId: customerId, startDate: date,
       ticketsTotal: Number(db.config.ticketsTotal) || 10,
@@ -177,8 +176,35 @@
       price: Number(db.config.bundlePrice) || 0
     };
     db.bundles.push(b);
+    return b;
+  };
+
+  // Sells a bundle starting on `date` and checks the customer in with it.
+  BM.sellBundleAndCheckIn = function (db, customerId, date, opts) {
+    if (BM.checkedInOn(db, customerId, date)) throw new Error('already checked in');
+    const b = BM.sellBundle(db, customerId, date);
     const a = BM.checkIn(db, customerId, date, opts);
     return { bundle: b, attendance: a };
+  };
+
+  BM.updateBundle = function (db, id, fields) {
+    const b = db.bundles.find(function (x) { return x.id === id; });
+    if (!b) return null;
+    if (fields.startDate) b.startDate = fields.startDate;
+    if (Number(fields.ticketsTotal) > 0) b.ticketsTotal = Number(fields.ticketsTotal);
+    if (Number(fields.maxOpportunities) > 0) b.maxOpportunities = Number(fields.maxOpportunities);
+    return b;
+  };
+
+  // Everyone with tickets left, soonest-to-run-out first.
+  BM.activeBundles = function (db, today) {
+    today = today || BM.today();
+    return db.bundles.map(function (b) {
+      return { bundle: b, stats: BM.bundleStats(db, b, today), customer: BM.customer(db, b.customerId) };
+    }).filter(function (x) { return x.customer && x.stats.ticketsLeft > 0; })
+      .sort(function (x, y) {
+        return Math.min(x.stats.ticketsLeft, x.stats.oppLeft) - Math.min(y.stats.ticketsLeft, y.stats.oppLeft);
+      });
   };
 
   BM.removeAttendance = function (db, id) {

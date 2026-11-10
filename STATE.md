@@ -13,6 +13,11 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   Restore needed v1.1.1 fix: iOS file picker must be attached to the DOM (CONFIRMED on device).
   Camera scan on the real iPhone: NOT yet confirmed. AppSheet still exists as fallback.
 
+- v1.2.0 (2026-11-10): blue theme (light-blue page, dark-blue buttons, red = main action; Marei's ask via Imre),
+  practice scan in Settings (saves nothing), clear Edit button, sell bundle without check-in, edit/extend/delete
+  a bundle, add class date by hand, Customers tab now has 3 views: People · Bundles (soonest to end) · Classes.
+- PROPOSED, not built: payment step when selling a bundle (cash / bank transfer details / Revolut) — waiting on Imre's answers.
+
 ## Why it exists (Imre, 2026-11-10)
 AppSheet app was ugly, had mislabeled confirmations, Imre couldn't maintain it, Marei sometimes
 couldn't scan anyone after the first person, and Imre had to hand-edit the sheet to add attendance.

@@ -30,7 +30,17 @@ try:
         pg.wait_for_timeout(500)
         n = pg.evaluate('window.__bm.db.customers.length')
         assert n > 0, 'restore failed'
-        pg.click('text=今日')
+        # practice mode: scanning and tapping Check in must save NOTHING
+        n_att, n_ses = pg.evaluate('[window.__bm.db.attendance.length, window.__bm.db.sessions.length]')
+        pg.click('text=スキャンを試す')
+        pg.wait_for_selector('#scanCard:not([hidden])', timeout=10000)
+        pg.screenshot(path=f'{shots}/02a-practice.png')
+        pg.click('#scanCard .btn.big')
+        pg.wait_for_timeout(300)
+        print('PRACTICE:', pg.inner_text('#scanCard').replace('\n', ' | '))
+        assert pg.evaluate('[window.__bm.db.attendance.length, window.__bm.db.sessions.length]') == [n_att, n_ses], 'practice saved data!'
+        pg.click('#scanClose')
+        pg.click('#nav button >> nth=0')
         pg.screenshot(path=f'{shots}/02-today.png')
         before = pg.evaluate('window.__bm.db.attendance.length')
         pg.click('.btn.big.primary')
@@ -56,8 +66,14 @@ try:
         # persisted across reload
         pg.reload(); pg.wait_for_timeout(500)
         assert pg.evaluate('window.__bm.db.attendance.length') == after, 'not persisted'
-        pg.click('text=お客様'); pg.screenshot(path=f'{shots}/07-customers.png')
-        pg.click('.list .item >> nth=0'); pg.screenshot(path=f'{shots}/08-customer.png')
+        pg.click('#nav button >> nth=1'); pg.screenshot(path=f'{shots}/07-customers.png')
+        pg.click('.seg button >> nth=1'); pg.screenshot(path=f'{shots}/07b-bundles.png')
+        pg.click('.seg button >> nth=2'); pg.screenshot(path=f'{shots}/07c-classes.png')
+        pg.click('.seg button >> nth=1'); pg.click('.list .item >> nth=0'); pg.screenshot(path=f'{shots}/08-customer.png', full_page=True)
+        pg.click('text=✎ >> nth=1'); pg.wait_for_selector('#modal:not([hidden]) #bwindow')
+        pg.fill('#bwindow', '14'); pg.click('#modal .btn.primary'); pg.wait_for_timeout(200)
+        assert '14' in pg.inner_text('#app'), 'bundle extend not shown'
+        pg.screenshot(path=f'{shots}/08b-customer-after-edit.png')
         pg.click('#nav button >> nth=0'); pg.click('text=手動でチェックイン'); pg.screenshot(path=f'{shots}/09-manual.png')
         pg.click('#nav button >> nth=2'); pg.click('text=English'); pg.click('#nav button >> nth=0'); pg.screenshot(path=f'{shots}/10-today-en.png')
         # missed-class reminder: pretend the last saved class was 3 weeks ago

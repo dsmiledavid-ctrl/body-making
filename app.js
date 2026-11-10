@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.1.1';
+  const APP_VERSION = '1.2.0';
   const KEY_DB = 'bm.db', KEY_PREV = 'bm.db.prev', KEY_LANG = 'bm.lang';
 
   // ---------- storage ----------
@@ -125,6 +125,8 @@
 
     function act(kind) {
       return on(region, function () {
+        const keys = { in: 'okIn', single: 'okSingle', bundle: 'okBundle' };
+        if (practice) { ctx.done(t(keys[kind], { name: c.name }) + ' ' + t('practiceTag'), null, cid); return; }
         if (!ensureSession(date)) return;
         let created, msgKey;
         try {
@@ -145,7 +147,7 @@
       const n = st.stats.ticketsLeft;
       return head +
         '<p class="status">' + esc(t('ticketsLeftDetail', { n: n, u: st.stats.oppUsed, m: st.bundle.maxOpportunities })) + '</p>' +
-        '<button class="btn big ok" ' + act('in') + '>' + esc(t('checkIn')) + '<small>' + esc(t('checkInUses', { n: n, m: n - 1 })) + '</small></button>' +
+        '<button class="btn big primary" ' + act('in') + '>' + esc(t('checkIn')) + '<small>' + esc(t('checkInUses', { n: n, m: n - 1 })) + '</small></button>' +
         '<button class="btn ghost" ' + on(region, ctx.close) + '>' + esc(t('cancel')) + '</button>';
     }
 
@@ -246,12 +248,22 @@
     }));
   }
 
-  // ---------- Customers ----------
+  // ---------- Customers (three views: people · bundles · classes) ----------
+  function tabs() {
+    const cur = view.tab || 'people';
+    return '<div class="seg" style="margin-bottom:16px">' + [['people', t('tabPeople')], ['bundles', t('tabBundles')], ['classes', t('tabClasses')]].map(function (x) {
+      return '<button class="' + (cur === x[0] ? 'on' : '') + '" ' + on('main', function () { go('customers', { tab: x[0] }); }) + '>' + esc(x[1]) + '</button>';
+    }).join('') + '</div>';
+  }
+
   function viewCustomers() {
+    const tab = view.tab || 'people';
+    if (tab === 'bundles') return viewBundles();
+    if (tab === 'classes') return viewClasses();
     const today = BM.today();
     const q = (view.q || '').toLowerCase();
     const list = db.customers.slice().sort(byName).filter(function (c) { return !q || c.name.toLowerCase().includes(q); });
-    let html = '<h1>' + esc(t('customers')) + '</h1><p class="sub">' + db.customers.length + '</p>';
+    let html = '<h1>' + esc(t('customers')) + '</h1><p class="sub">' + esc(t('peopleCount', { n: db.customers.length })) + '</p>' + tabs();
     html += '<input id="cq" type="search" placeholder="' + esc(t('search')) + '" value="' + esc(view.q || '') + '">';
     html += '<div style="height:12px"></div><button class="btn" ' + on('main', editCustomer.bind(null, null)) + '>' + esc(t('addCustomer')) + '</button><div style="height:12px"></div>';
     html += '<div class="list">' + list.map(function (c) {
@@ -259,6 +271,41 @@
         '<div class="avatar">' + initial(c.name) + '</div><div class="grow">' + esc(c.name) + '</div>' + badgeFor(c.id, today) + '</button>';
     }).join('') + '</div>';
     setTimeout(function () { const s = $('cq'); if (s) s.oninput = function () { view.q = s.value; view.focus = 'cq'; render(); }; });
+    return html;
+  }
+
+  function viewBundles() {
+    const list = BM.activeBundles(db);
+    let html = '<h1>' + esc(t('tabBundles')) + '</h1><p class="sub">' + esc(t('bundlesSub', { n: list.length })) + '</p>' + tabs();
+    if (!list.length) return html + '<div class="card muted center">' + esc(t('noHistory')) + '</div>';
+    html += '<div class="list">' + list.map(function (x) {
+      const soon = Math.min(x.stats.ticketsLeft, x.stats.oppLeft) <= 2;
+      return '<button class="item" ' + on('main', function () { go('customer', { id: x.customer.id }); }) + '>' +
+        '<div class="avatar">' + initial(x.customer.name) + '</div><div class="grow"><div>' + esc(x.customer.name) + '</div>' +
+        '<div class="small muted">' + esc(t('bundleOverviewLine', { start: fmtDate(x.bundle.startDate), o: x.stats.oppLeft })) + '</div></div>' +
+        '<span class="badge' + (soon ? ' warn' : '') + '">' + esc(t('ticketsLeft', { n: x.stats.ticketsLeft })) + '</span></button>';
+    }).join('') + '</div>';
+    return html;
+  }
+
+  function viewClasses() {
+    const sessions = db.sessions.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
+    let html = '<h1>' + esc(t('tabClasses')) + '</h1><p class="sub">' + esc(t('classesSub', { n: sessions.length })) + '</p>' + tabs();
+    html += '<div class="card"><label for="newclass" style="margin-top:0">' + esc(t('addClassDate')) + '</label>' +
+      '<div class="row"><input id="newclass" type="date" max="' + esc(BM.today()) + '" value="' + esc(BM.today()) + '">' +
+      '<button class="btn" style="width:auto;min-height:48px;white-space:nowrap;flex:none" ' + on('main', function () {
+        const d = $('newclass').value; if (!d) return;
+        if (BM.addSession(db, d)) { save(); render(); toast(t('classAdded', { d: fmtDate(d) })); } else toast(t('classExists'));
+      }) + '>' + esc(t('add')) + '</button></div></div>';
+    html += '<div class="list">' + sessions.map(function (s) {
+      const people = db.attendance.filter(function (a) { return a.date === s.date; }).map(function (a) { return name(a.customerId); });
+      return '<div class="item"><div class="grow"><div>' + esc(fmtDate(s.date)) + ' <span class="badge none">' + people.length + '</span></div>' +
+        '<div class="small muted">' + (people.length ? esc(people.join('、')) : esc(t('nobodyCame'))) + '</div></div>' +
+        '<button class="x" aria-label="delete" ' + on('main', function () {
+          if (!confirm(t('deleteClassQ', { d: fmtDate(s.date) }))) return;
+          BM.removeSession(db, s.date); save(); render();
+        }) + '>✕</button></div>';
+    }).join('') + '</div>';
     return html;
   }
 
@@ -300,15 +347,20 @@
     if (st.state !== 'checkedIn') {
       html += '<button class="btn primary big" ' + on('main', function () { openActionModal(c.id, today, true); }) + '>' + esc(t('checkInToday')) + '</button>';
     }
-    html += '<button class="btn" ' + on('main', function () { showQR(c.id); }) + '>' + esc(t('showQR')) + '</button>';
-    html += '<button class="btn ghost" ' + on('main', function () { editCustomer(c.id); }) + '>' + esc(t('edit')) + '</button>';
+    html += '<div class="grid2">' +
+      '<button class="btn" ' + on('main', function () { editCustomer(c.id); }) + '>✎ ' + esc(t('editShort')) + '</button>' +
+      '<button class="btn" ' + on('main', function () { showQR(c.id); }) + '>' + esc(t('qrShort')) + '</button></div>';
+    html += '<button class="btn soft" ' + on('main', function () {
+      const b = BM.sellBundle(db, c.id, today); save(); render();
+      toast(t('bundleSold', { name: c.name }), function () { BM.removeBundle(db, b.id); save(); render(); });
+    }) + '>' + esc(t('sellOnly')) + '<small>' + esc(t('sellOnlySub', { t: db.config.ticketsTotal, p: fmtFt(db.config.bundlePrice) })) + '</small></button>';
 
     const bundles = BM.customerBundles(db, c.id).reverse();
     html += '<h2>' + esc(t('bundles')) + '</h2>';
     html += bundles.length ? '<div class="list">' + bundles.map(function (b) {
       const s = BM.bundleStats(db, b, today);
-      return '<div class="item"><div class="grow"><div>' + esc(t('ticketsLeft', { n: s.ticketsLeft })) + '</div><div class="small muted">' +
-        esc(t('bundleLine', { start: fmtDate(b.startDate), a: s.attended, t: b.ticketsTotal, u: Math.min(s.oppUsed, b.maxOpportunities), m: b.maxOpportunities })) + '</div></div></div>';
+      return '<button class="item" ' + on('main', function () { editBundle(b.id); }) + '><div class="grow"><div>' + esc(t('ticketsLeft', { n: s.ticketsLeft })) + '</div><div class="small muted">' +
+        esc(t('bundleLine', { start: fmtDate(b.startDate), a: s.attended, t: b.ticketsTotal, u: Math.min(s.oppUsed, b.maxOpportunities), m: b.maxOpportunities })) + '</div></div><span class="muted">✎</span></button>';
     }).join('') + '</div>' : '<div class="card muted center">' + esc(t('noHistory')) + '</div>';
 
     const hist = db.attendance.filter(function (a) { return a.customerId === c.id; })
@@ -317,6 +369,27 @@
     html += hist.length ? '<div class="list">' + hist.map(function (a) { return attendanceRow(a, false); }).join('') + '</div>'
       : '<div class="card muted center">' + esc(t('noHistory')) + '</div>';
     return html;
+  }
+
+  function editBundle(id) {
+    const b = db.bundles.find(function (x) { return x.id === id; });
+    if (!b) return;
+    const used = db.attendance.filter(function (a) { return a.bundleId === id; }).length;
+    REG.modal = {};
+    openModal('<h3>' + esc(t('editBundle')) + '</h3><p class="status">' + esc(name(b.customerId)) + '</p>' +
+      '<label for="bstart">' + esc(t('startDate')) + '</label><input id="bstart" type="date" value="' + esc(b.startDate) + '">' +
+      '<label for="btickets">' + esc(t('ticketsTotal')) + '</label><input id="btickets" type="number" inputmode="numeric" min="1" value="' + esc(b.ticketsTotal) + '">' +
+      '<label for="bwindow">' + esc(t('maxOpportunities')) + '</label><input id="bwindow" type="number" inputmode="numeric" min="1" value="' + esc(b.maxOpportunities) + '">' +
+      '<p class="small muted">' + esc(t('extendNote')) + '</p>' +
+      '<button class="btn primary" ' + on('modal', function () {
+        BM.updateBundle(db, id, { startDate: $('bstart').value, ticketsTotal: $('btickets').value, maxOpportunities: $('bwindow').value });
+        save(); closeModal(); render(); toast(t('saved'));
+      }) + '>' + esc(t('save')) + '</button>' +
+      '<button class="btn danger" ' + on('modal', function () {
+        if (!confirm(t('deleteBundleQ', { n: used }))) return;
+        BM.removeBundle(db, id); save(); closeModal(); render();
+      }) + '>' + esc(t('deleteBundle')) + '</button>' +
+      '<button class="btn ghost" ' + on('modal', closeModal) + '>' + esc(t('cancel')) + '</button>');
   }
 
   // ---------- QR cards ----------
@@ -419,6 +492,8 @@
   // ---------- Settings ----------
   function viewSettings() {
     let html = '<h1>' + esc(t('settings')) + '</h1>';
+    html += '<h2>' + esc(t('practiceTitle')) + '</h2><button class="btn" ' + on('main', function () { openScanner(true); }) + '>' +
+      esc(t('practiceScan')) + '<small>' + esc(t('practiceSub')) + '</small></button>';
     html += '<h2>' + esc(t('language')) + '</h2><div class="seg">' +
       ['ja', 'en'].map(function (l) {
         return '<button class="' + (lang === l ? 'on' : '') + '" ' + on('main', function () {
@@ -438,17 +513,6 @@
         .map(function (p) { return '<label for="cfg-' + p[0] + '">' + esc(t(p[0])) + '</label><input id="cfg-' + p[0] + '" data-cfg="' + p[0] + '" type="number" inputmode="numeric" min="1" value="' + esc(p[1]) + '">'; }).join('') +
       '<p class="small muted">' + esc(t('rulesNote')) + '</p></div>';
 
-    const sessions = db.sessions.slice().sort(function (a, b) { return a.date < b.date ? 1 : -1; });
-    html += '<h2>' + esc(t('classes')) + ' (' + sessions.length + ')</h2><div class="list">' +
-      sessions.slice(0, 12).map(function (s) {
-        const n = db.attendance.filter(function (a) { return a.date === s.date; }).length;
-        return '<div class="item"><div class="grow">' + esc(fmtDate(s.date)) + '</div><span class="badge none">' + n + '</span>' +
-          '<button class="x" ' + on('main', function () {
-            if (!confirm(t('deleteClassQ', { d: fmtDate(s.date) }))) return;
-            BM.removeSession(db, s.date); save(); render();
-          }) + '>✕</button></div>';
-      }).join('') + '</div>';
-
     html += '<p class="small muted center" style="margin-top:24px">' + esc(isStandalone() ? t('storageSafe') : t('storageUnsafe')) +
       '<br>' + esc(t('version', { v: APP_VERSION })) + '</p>';
 
@@ -464,12 +528,14 @@
   }
 
   // ---------- Scanner ----------
-  let stream = null, scanning = false, cardOpen = false, lastCode = '', lastAt = 0, loopTimer = null;
+  let stream = null, scanning = false, cardOpen = false, lastCode = '', lastAt = 0, loopTimer = null, practice = false;
 
-  function openScanner() {
+  function openScanner(practiceMode) {
+    practice = !!practiceMode;
     $('toast').hidden = true;
     $('scanner').hidden = false;
-    $('scanHint').textContent = t('pointCamera');
+    $('scanner').classList.toggle('practice', practice);
+    $('scanHint').textContent = practice ? t('practiceHint') : t('pointCamera');
     hideCard();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showCameraError(); return; }
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }, audio: false })
@@ -487,7 +553,7 @@
   }
 
   function closeScanner() {
-    scanning = false; clearTimeout(loopTimer);
+    scanning = false; practice = false; clearTimeout(loopTimer);
     if (stream) stream.getTracks().forEach(function (tr) { tr.stop(); });
     stream = null;
     $('scanner').hidden = true; hideCard();
@@ -530,7 +596,7 @@
         showCard(() => '<div class="success"><div class="big-check">✓</div><h3>' + esc(msg) + '</h3>' +
           (st.stats ? '<p class="status">' + esc(t('ticketsLeft', { n: st.stats.ticketsLeft })) + '</p>' : '<p class="status"></p>') +
           '<button class="btn primary" ' + on('card', hideCard) + '>' + esc(t('done')) + '</button>' +
-          '<button class="btn ghost" ' + on('card', function () { undo(); hideCard(); toast(t('undone')); }) + '>' + esc(t('undo')) + '</button></div>');
+          (undo ? '<button class="btn ghost" ' + on('card', function () { undo(); hideCard(); toast(t('undone')); }) + '>' + esc(t('undo')) + '</button>' : '') + '</div>');
         clearTimeout(successTimer);
         successTimer = setTimeout(function () { if (cardOpen) hideCard(); }, 2500);
       }
