@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.8.0';
+  const APP_VERSION = '1.8.1';
   const KEY_DB = 'bm.db', KEY_PREV = 'bm.db.prev', KEY_LANG = 'bm.lang';
 
   // ---------- storage ----------
@@ -625,18 +625,23 @@
   // ---------- QR cards ----------
   function qrFor(text) { const q = qrcode(0, 'M'); q.addData(text); q.make(); return q; }
 
+  // The card a customer keeps: castle logo, QR code, their name.
+  const LOGO = new Image(); LOGO.src = 'icons/logo.png';
   function qrCanvas(c) {
     const q = qrFor(c.id), cell = 10, n = q.getModuleCount(), pad = 40, qs = n * cell;
-    const W = qs + pad * 2, H = qs + pad * 2 + 70;
+    const logoH = LOGO.complete && LOGO.naturalWidth ? 120 : 0;
+    const W = qs + pad * 2, top = pad + (logoH ? logoH + 44 : 30), H = top + qs + 96;
     const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
     const x = cv.getContext('2d');
     x.fillStyle = '#fff'; x.fillRect(0, 0, W, H);
-    x.fillStyle = '#2b2226';
-    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) x.fillRect(pad + k * cell, pad + r * cell, cell, cell);
-    x.font = '600 30px -apple-system, "Hiragino Sans", sans-serif'; x.textAlign = 'center';
-    x.fillText(c.name, W / 2, qs + pad + 50);
-    x.font = '18px -apple-system, sans-serif'; x.fillStyle = '#b5476b';
-    x.fillText('Body Making', W / 2, pad - 12);
+    x.textAlign = 'center';
+    if (logoH) x.drawImage(LOGO, (W - logoH) / 2, pad - 8, logoH, logoH);
+    x.font = '600 20px -apple-system, "Hiragino Sans", sans-serif'; x.fillStyle = '#1d4b8f';
+    x.fillText('Body Making', W / 2, top - 14);
+    x.fillStyle = '#14233a';
+    for (let r = 0; r < n; r++) for (let k = 0; k < n; k++) if (q.isDark(r, k)) x.fillRect(pad + k * cell, top + r * cell, cell, cell);
+    x.font = '700 32px -apple-system, "Hiragino Sans", sans-serif';
+    x.fillText(c.name, W / 2, top + qs + 60);
     return cv;
   }
 

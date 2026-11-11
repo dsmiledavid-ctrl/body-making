@@ -52,8 +52,10 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   stat tiles, action tiles, grouped Settings, "+" in header, check-in time on Today, "ending soon" list,
   phrase-aware Japanese line breaks (nb()), one vocabulary (残り回数 / 有効期限=レッスン数), no spaces in
   Japanese numbers, 30,000 Ft. Tests: 16 rules + full browser run incl. new logic checks.
-- DATA (found 11-11, NOT changed): one AppSheet double check-in (same customer, 2026-09-30, 10 s apart, 2nd
-  row on another customer's bundle). Proposed to Imre: delete the 2nd row; waiting for his OK.
+- DATA (found 11-11, NOT changed yet): one AppSheet double check-in (same customer, 2026-09-30, 10 s apart, 2nd
+  row on another customer's bundle). Imre 11-11: she DID attend; he hand-entered it and typed the wrong bundle
+  number. So: keep her own-bundle row, remove the copy on the other customer's bundle — awaiting his go.
+- v1.8.1: QR card has the castle logo + blue label (was old pink); new-customer card verified to scan.
 - Safari-engine test browser needs system libs: Imre runs once: sudo python3 -m playwright install-deps webkit
   (NOT run by Claude. 11-11 a shell heredoc accidentally tried to execute it; it failed at the password
   prompt, nothing installed. Lesson: quote heredocs (<<'EOF') when the text contains backticks.)
