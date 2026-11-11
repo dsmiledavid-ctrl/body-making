@@ -52,6 +52,18 @@ try:
         pg.wait_for_timeout(300)
         print('PRACTICE:', pg.inner_text('#scanCard').replace('\n', ' | '))
         assert pg.evaluate('[window.__bm.db.attendance.length, window.__bm.db.sessions.length]') == [n_att, n_ses], 'practice saved data!'
+        # photo mode (still practice): a blurred, turned photo of the card must be read
+        photo = os.path.join(os.path.dirname(y4m), 'photo.jpg')
+        subprocess.check_call([sys.executable, os.path.join(root, 'tests', 'make_qr_photo.py'), cid, photo])
+        if pg.locator('#scanCard:not([hidden])').count(): pg.click('#scanCard .btn >> nth=0')
+        with pg.expect_file_chooser() as fc2:            # click within the 3 s same-card pause
+            pg.click('#scanPhoto')
+        fc2.value.set_files(photo)
+        pg.wait_for_selector('#scanCard:not([hidden]) .btn.big', timeout=10000)
+        print('PHOTO:', pg.inner_text('#scanCard').replace('\n', ' | ')[:80])
+        print('DIAG:', pg.inner_text('#scanDiag'))
+        pg.screenshot(path=f'{shots}/02b-photo.png')
+        pg.click('#scanCard .btn.ghost')
         pg.click('#scanClose')
         pg.click('#nav button >> nth=0')
         pg.screenshot(path=f'{shots}/02-today.png')

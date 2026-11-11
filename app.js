@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.5.1';
+  const APP_VERSION = '1.6.0';
   const KEY_DB = 'bm.db', KEY_PREV = 'bm.db.prev', KEY_LANG = 'bm.lang';
 
   // ---------- storage ----------
@@ -103,6 +103,7 @@
 
   function render() {
     REG.main = {};
+    document.querySelectorAll('[data-t]').forEach(function (el) { el.textContent = t(el.dataset.t); });
     const fn = { today: viewToday, customers: viewCustomers, customer: viewCustomer, manual: viewManual, settings: viewSettings }[view.name] || viewToday;
     $('app').innerHTML = fn();
     renderNav();
@@ -641,52 +642,113 @@
 
   // ---------- Scanner ----------
   let stream = null, scanning = false, cardOpen = false, lastCode = '', lastAt = 0, loopTimer = null, practice = false;
+  let cams = [], camLabel = '', detector = null, detectBusy = false;
+  const KEY_CAM = 'bm.cam';
+
+  // Android Chrome has the phone's own QR reader built in (BarcodeDetector):
+  // much better with real, slightly blurry pictures. iPhone Safari doesn't
+  // offer it, so there the app uses jsQR.
+  try {
+    if ('BarcodeDetector' in window) {
+      BarcodeDetector.getSupportedFormats().then(function (f) {
+        if (f.indexOf('qr_code') >= 0) detector = new BarcodeDetector({ formats: ['qr_code'] });
+      }).catch(function () {});
+    }
+  } catch (e) { /* ignore */ }
 
   function openScanner(practiceMode) {
     practice = !!practiceMode;
     unlockAudio();
     frameNo = 0; noVideoSince = 0;
-    const d = $('scanDiag'); if (d) d.hidden = true;
-    if (practice) setDiag(t('diagStarting'));
     $('toast').hidden = true;
     $('scanner').hidden = false;
     $('scanner').classList.toggle('practice', practice);
     $('scanHint').textContent = practice ? t('practiceHint') : t('pointCamera');
+    $('scanSnap').hidden = !practice;
+    $('scanSwitch').hidden = true;
+    setDiag(t('diagStarting'));
     hideCard();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { showCameraError(); return; }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
-      .then(function (s) {
-        stream = s;
-        const v = $('video'); v.srcObject = s;
-        return v.play();
-      })
+    let saved = null;
+    try { saved = localStorage.getItem(KEY_CAM); } catch (e) { /* ignore */ }
+    (saved ? startCamera(saved).catch(function () { return startCamera(null); }) : startCamera(null))
       .then(function () { scanning = true; tick(); })
       .catch(function (e) { console.error(e); showCameraError(); });
   }
 
+  function startCamera(deviceId) {
+    stopStream();
+    const video = deviceId ? { deviceId: { exact: deviceId } } : { facingMode: { ideal: 'environment' } };
+    video.width = { ideal: 1920 }; video.height = { ideal: 1080 };
+    return navigator.mediaDevices.getUserMedia({ video: video, audio: false }).then(function (s) {
+      stream = s;
+      const track = s.getVideoTracks()[0];
+      camLabel = track.label || '';
+      // keep autofocus running where the phone allows it
+      try {
+        const caps = track.getCapabilities ? track.getCapabilities() : {};
+        if (caps.focusMode && caps.focusMode.indexOf('continuous') >= 0) {
+          track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function () {});
+        }
+      } catch (e) { /* ignore */ }
+      const v = $('video'); v.srcObject = s;
+      return navigator.mediaDevices.enumerateDevices().then(function (d) {
+        cams = d.filter(function (x) { return x.kind === 'videoinput'; });
+        $('scanSwitch').hidden = cams.length < 2;
+      }).catch(function () { /* ignore */ }).then(function () { return v.play(); });
+    });
+  }
+
+  function stopStream() { if (stream) stream.getTracks().forEach(function (tr) { tr.stop(); }); stream = null; }
+
+  // Phones with several back lenses: try the next one (remembered for next time).
+  function switchCamera() {
+    if (cams.length < 2) return;
+    let curId = '';
+    try { curId = stream.getVideoTracks()[0].getSettings().deviceId; } catch (e) { /* ignore */ }
+    const i = cams.findIndex(function (c) { return c.deviceId === curId; });
+    const next = cams[(i + 1) % cams.length];
+    scanning = false; clearTimeout(loopTimer);
+    setDiag(t('diagStarting'));
+    startCamera(next.deviceId).then(function () {
+      try { localStorage.setItem(KEY_CAM, next.deviceId); } catch (e) { /* ignore */ }
+      scanning = true; frameNo = 0; tick();
+    }).catch(function () { showCameraError(); });
+  }
+  $('scanSwitch').onclick = switchCamera;
+
   function showCameraError() {
-    showCard(() => '<p class="status">' + esc(t('cameraError')) + '</p><button class="btn primary" ' + on('card', closeScanner) + '>' + esc(t('close')) + '</button>');
+    showCard(() => '<p class="status">' + esc(t('cameraError')) + '</p>' +
+      '<button class="btn primary" ' + on('card', function () { hideCard(); photoScan(); }) + '>' + esc(t('photoScan')) + '</button>' +
+      '<button class="btn ghost" ' + on('card', closeScanner) + '>' + esc(t('close')) + '</button>');
   }
 
   function closeScanner() {
     scanning = false; practice = false; clearTimeout(loopTimer);
-    if (stream) stream.getTracks().forEach(function (tr) { tr.stop(); });
-    stream = null;
+    stopStream();
     $('scanner').hidden = true; hideCard();
     render();
   }
   $('scanClose').onclick = closeScanner;
 
-  // Each frame alternates between two looks at the picture:
-  //  even frames: the middle of the picture at full detail (a card held
-  //               20-30 cm away, which is as close as iPhones can focus);
-  //  odd frames:  the whole picture, scaled down (a card held close / big).
+  function shortLabel() { const l = camLabel || '?'; return l.length > 26 ? l.slice(0, 26) + '…' : l; }
+
+  // jsQR path: each frame alternates between two looks at the picture —
+  //  even frames: the middle of the picture at full detail (card 20-30 cm away);
+  //  odd frames:  the whole picture, scaled down (card close / big).
   let frameNo = 0, noVideoSince = 0;
   function tick() {
     if (!scanning) return;
-    loopTimer = setTimeout(tick, 110);
+    loopTimer = setTimeout(tick, 120);
     if (cardOpen) return;
     const v = $('video');
+    const tr = stream && stream.getVideoTracks()[0];
+    if (tr && tr.readyState === 'ended') {             // e.g. after the photo camera took over
+      scanning = false;
+      startCamera(null).then(function () { scanning = true; tick(); }).catch(showCameraError);
+      return;
+    }
+    if (v.paused) v.play().catch(function () {});
     if (!v.videoWidth) {
       if (!noVideoSince) noVideoSince = Date.now();
       if (Date.now() - noVideoSince > 4000) setDiag(t('diagNoVideo'));
@@ -695,6 +757,18 @@
     noVideoSince = 0;
     frameNo++;
     const vw = v.videoWidth, vh = v.videoHeight;
+    if (frameNo % 5 === 0) setDiag(t('diagRunning', { cam: shortLabel(), w: vw, h: vh, n: frameNo, e: detector ? 'native' : 'jsQR' }));
+
+    if (detector) {
+      if (detectBusy) return;
+      detectBusy = true;
+      detector.detect(v).then(function (codes) {
+        detectBusy = false;
+        if (codes && codes.length && codes[0].rawValue) handleCode(codes[0].rawValue);
+      }).catch(function () { detectBusy = false; detector = null; });   // fall back to jsQR
+      return;
+    }
+
     let sx = 0, sy = 0, sw = vw, sh = vh;
     if (frameNo % 2 === 0) {
       const side = Math.round(Math.min(vw, vh) * 0.7);
@@ -708,15 +782,92 @@
     const ctx = cv.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(v, sx, sy, sw, sh, 0, 0, w, h);
     const res = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: frameNo % 4 < 2 ? 'dontInvert' : 'attemptBoth' });
-    if (practice && frameNo % 5 === 0) setDiag(t('diagRunning', { w: vw, h: vh, n: frameNo }));
-    if (!res || !res.data) return;
-    const code = res.data.trim();
+    if (res && res.data) handleCode(res.data);
+  }
+
+  function handleCode(raw) {
+    const code = String(raw).trim();
+    if (!code || cardOpen) return;
     if (code === lastCode && Date.now() - lastAt < 3000) return;
     lastCode = code; lastAt = Date.now();
     found();
-    if (practice) setDiag(t('diagFound', { code: code.length > 24 ? code.slice(0, 24) + '…' : code }));
+    setDiag(t('diagFound', { code: code.length > 24 ? code.slice(0, 24) + '…' : code }));
     onScan(code);
   }
+
+  // ---------- read from a photo (the phone's own camera app focuses properly) ----------
+  function photoScan() {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*'; inp.setAttribute('capture', 'environment');
+    inp.style.position = 'fixed'; inp.style.left = '-9999px'; inp.style.opacity = '0';
+    document.body.appendChild(inp);
+    let done = false;
+    const handle = function () {
+      if (done) return;
+      const f = inp.files && inp.files[0]; if (!f) return;
+      done = true; inp.remove();
+      setDiag(t('diagPhoto'));
+      decodeImageFile(f).then(function (code) {
+        if (code) { lastCode = ''; handleCode(code); return; }
+        showCard(() => '<div class="success"><div class="big-check info">?</div><h3>' + esc(t('photoFail')) + '</h3>' +
+          '<p class="status">' + esc(t('photoFailTip')) + '</p>' +
+          '<button class="btn primary" ' + on('card', function () { hideCard(); photoScan(); }) + '>' + esc(t('photoAgain')) + '</button>' +
+          '<button class="btn ghost" ' + on('card', hideCard) + '>' + esc(t('close')) + '</button></div>');
+      });
+    };
+    inp.addEventListener('change', handle);
+    inp.addEventListener('input', handle);
+    inp.click();
+  }
+  $('scanPhoto').onclick = photoScan;
+
+  function decodeImageFile(file) {
+    return loadImage(file).then(function (img) {
+      const sizes = [1600, 1000, 600];
+      const attempt = function (k) {
+        if (k >= sizes.length) return null;
+        const s = Math.min(1, sizes[k] / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
+        const x = c.getContext('2d', { willReadFrequently: true });
+        x.drawImage(img, 0, 0, c.width, c.height);
+        const native = detector
+          ? detector.detect(c).then(function (r) { return r && r.length ? r[0].rawValue : null; }).catch(function () { return null; })
+          : Promise.resolve(null);
+        return native.then(function (code) {
+          if (code) return code;
+          const r = jsQR(x.getImageData(0, 0, c.width, c.height).data, c.width, c.height, { inversionAttempts: 'attemptBoth' });
+          return r && r.data ? r.data : attempt(k + 1);
+        });
+      };
+      return attempt(0);
+    }).catch(function (e) { console.error(e); return null; });
+  }
+  function loadImage(file) {
+    const viaEl = function () {
+      return new Promise(function (res, rej) {
+        const u = URL.createObjectURL(file), i = new Image();
+        i.onload = function () { res(i); }; i.onerror = rej; i.src = u;
+      });
+    };
+    if (window.createImageBitmap) return createImageBitmap(file).catch(viaEl);
+    return viaEl();
+  }
+
+  // ---------- test picture: what the camera sees, to send to Claude ----------
+  function snapshot() {
+    const v = $('video'); if (!v.videoWidth) return;
+    const s = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(v.videoWidth * s); c.height = Math.round(v.videoHeight * s);
+    const x = c.getContext('2d');
+    x.drawImage(v, 0, 0, c.width, c.height);
+    x.fillStyle = 'rgba(0,0,0,.65)'; x.fillRect(0, 0, c.width, 30);
+    x.fillStyle = '#fff'; x.font = '15px sans-serif';
+    x.fillText('v' + APP_VERSION + ' · ' + camLabel + ' · ' + v.videoWidth + 'x' + v.videoHeight + ' · ' + (detector ? 'native' : 'jsQR') + ' · frames ' + frameNo, 8, 20);
+    c.toBlob(function (b) { shareFile(new File([b], 'scan-test-' + BM.today() + '.png', { type: 'image/png' })); });
+  }
+  $('scanSnap').onclick = snapshot;
 
   function setDiag(text) { const d = $('scanDiag'); if (d) { d.textContent = text; d.hidden = false; } }
 
@@ -771,10 +922,12 @@
     const html = build();
     clearTimeout(successTimer);
     const el = $('scanCard'); el.innerHTML = html; el.hidden = false; cardOpen = true;
+    $('scanBottom').hidden = true;
   }
   function hideCard() {
     clearTimeout(successTimer);
     $('scanCard').hidden = true; cardOpen = false; lastAt = Date.now();
+    $('scanBottom').hidden = false;
   }
 
   // ---------- missed-class reminder ----------

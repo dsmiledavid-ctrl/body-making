@@ -211,3 +211,9 @@ textarea.report {
   font-size: 34px; font-weight: 700; cursor: grab; touch-action: none; box-shadow: 0 2px 8px rgba(0,0,0,.2);
 }
 .slider.danger { background: var(--danger); }
+
+.scan-bottom {
+  position: absolute; left: 12px; right: 12px; bottom: calc(18px + var(--safe-b));
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;
+}
+.scan-bottom .pill { font-size: 15px; }

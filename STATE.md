@@ -31,6 +31,11 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   max-age=600 and Android resumes instead of reloading. Fix: service worker fetches with cache:'no-cache',
   registers with updateViaCache:'none', checks for updates whenever the app comes to the front; Settings
   has "Update to the latest version".
+- v1.6.0 (2026-11-11): live scan ALSO failed on Imre's Samsung (v1.5.1) → not iPhone-specific; cause still
+  UNKNOWN (no diag line reported yet). Added: Android built-in QR reader (BarcodeDetector) when available,
+  continuous autofocus where allowed, camera switch (multi-lens phones, remembered), "Read from photo"
+  (native camera app photo → decode; reads a blurred/rotated synthetic photo in tests), status line on
+  every scan screen (lens · resolution · frames · engine), "Test picture" (practice) to send Claude a frame.
 - PROPOSED, not built: payment step when selling a bundle (cash / bank transfer details / Revolut) — waiting on Imre's answers.
 
 ## Why it exists (Imre, 2026-11-10)
