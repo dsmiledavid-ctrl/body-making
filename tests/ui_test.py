@@ -108,17 +108,35 @@ try:
         slide(pg, '#modal .slider'); pg.wait_for_timeout(400)
         assert pg.evaluate('window.__bm.db.sessions.length') == n_ses - 1, 'slide did not delete'
         print('SLIDE DELETE: ok')
-        pg.click('.seg button >> nth=1'); pg.click('.list .item >> nth=0'); pg.screenshot(path=f'{shots}/08-customer.png', full_page=True)
-        pg.click('text=✎ >> nth=1'); pg.wait_for_selector('#modal:not([hidden]) #bwindow')
+        pg.click('.seg button >> nth=1'); pg.click('#app .list .item >> nth=0'); pg.screenshot(path=f'{shots}/08-customer.png', full_page=True)
+        pg.click('#app .list .item >> nth=0'); pg.wait_for_selector('#modal:not([hidden]) #bwindow')
         pg.fill('#bwindow', '14'); pg.click('#modal .btn.primary'); pg.wait_for_timeout(200)
         assert '14' in pg.inner_text('#app'), 'bundle extend not shown'
         pg.screenshot(path=f'{shots}/08b-customer-after-edit.png')
+        # an active bundle blocks selling another one (its clock would start too early)
+        n_b = pg.evaluate('window.__bm.db.bundles.length')
+        pg.click('text=回数券を販売'); pg.wait_for_timeout(300)
+        assert pg.evaluate('window.__bm.db.bundles.length') == n_b, 'sold a second bundle while one is active'
+        print('SELL BLOCKED:', pg.inner_text('#toast')[:40])
         pg.click('text=利用状況を送る'); pg.wait_for_selector('#rtext')
         print('REPORT JA:', pg.input_value('#rtext').replace('\n', ' / ')[:160])
         pg.screenshot(path=f'{shots}/08c-report.png')
         pg.click('#modal .seg button >> nth=1')
         print('REPORT EN:', pg.input_value('#rtext').replace('\n', ' / ')[:160])
         pg.click('#modal .btn.ghost')
+        # check-in outside the scanner on a day with no class must ASK before recording a class date
+        pg.evaluate("""() => { const t = new Date(); const iso = t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
+            const d = JSON.parse(localStorage.getItem('bm.db')); d.sessions = d.sessions.filter(s => s.date !== iso); localStorage.setItem('bm.db', JSON.stringify(d)); }""")
+        pg.reload(); pg.wait_for_timeout(400)
+        n_s, n_a = pg.evaluate('[window.__bm.db.sessions.length, window.__bm.db.attendance.length]')
+        pg.click('#nav button >> nth=1'); pg.click('#app .list .item >> nth=0')            # first customer (no bundle)
+        pg.click('#app .btn.big.primary'); pg.click('#modal .btn.big.primary')            # sell bundle & check in
+        pg.wait_for_selector('#modal:not([hidden]) .slider'); pg.wait_for_timeout(200)
+        assert pg.evaluate('[window.__bm.db.sessions.length, window.__bm.db.attendance.length]') == [n_s, n_a], 'recorded a class without asking'
+        pg.screenshot(path=f'{shots}/08d-start-first.png')
+        slide(pg, '#modal .slider'); pg.wait_for_timeout(400)
+        assert pg.evaluate('[window.__bm.db.sessions.length, window.__bm.db.attendance.length]') == [n_s + 1, n_a + 1], 'slide did not record'
+        print('ASK BEFORE CLASS: ok')
         pg.click('#nav button >> nth=0'); pg.click('text=手動でチェックイン'); pg.screenshot(path=f'{shots}/09-manual.png')
         pg.click('#nav button >> nth=2'); pg.click('text=English'); pg.click('#nav button >> nth=0'); pg.screenshot(path=f'{shots}/10-today-en.png')
         # missed-class reminder: pretend the last saved class was 3 weeks ago

@@ -44,6 +44,17 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   replaces jsQR where no native reader (= iPhone). Synthetic blur bench: jsQR 2/10, ZXing 4/10; heavy blur
   beats both → photo mode. iPhone: the web app has NEVER been scanned with (Imre, 11-11); AppSheet's
   scanner worked on it, but AppSheet is a native app, so that says nothing about the web app.
+- v1.8.0 (2026-11-11, Imre's ask "make it better… for a Japanese person keen on detail and making sense"):
+  LOGIC: (1) check-in outside the scanner on a day with no class now ASKS (slide) before recording a class
+  date — before, it silently ate everyone's window; (2) selling a bundle while one is active is blocked with
+  the reason (its window would start early; AppSheet blocked it too); (3) ended bundles labelled 終了 vs 使用中.
+  LOOK: line-icon set (no emoji), stamp card (✓ attended / ○ left / × can't be used before the limit),
+  stat tiles, action tiles, grouped Settings, "+" in header, check-in time on Today, "ending soon" list,
+  phrase-aware Japanese line breaks (nb()), one vocabulary (残り回数 / 有効期限=レッスン数), no spaces in
+  Japanese numbers, 30,000 Ft. Tests: 16 rules + full browser run incl. new logic checks.
+- DATA (found 11-11, NOT changed): one AppSheet double check-in (same customer, 2026-09-30, 10 s apart, 2nd
+  row on another customer's bundle). Proposed to Imre: delete the 2nd row; waiting for his OK.
+- Safari-engine test browser needs system libs: Imre runs once .
 - PROPOSED, not built: payment step when selling a bundle (cash / bank transfer details / Revolut) — waiting on Imre's answers.
 
 ## Why it exists (Imre, 2026-11-10)
