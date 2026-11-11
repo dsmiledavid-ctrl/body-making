@@ -36,6 +36,12 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   continuous autofocus where allowed, camera switch (multi-lens phones, remembered), "Read from photo"
   (native camera app photo → decode; reads a blurred/rotated synthetic photo in tests), status line on
   every scan screen (lens · resolution · frames · engine), "Test picture" (practice) to send Claude a frame.
+- 2026-11-11 ~01:00: v1.6.0 live scan WORKED on Imre's Samsung with no changes (he reported). v1.5.1 (improved
+  jsQR) had failed there → evidence that jsQR is too weak on real camera frames (engine word on his status line
+  not reported, so "native reader did it" is inferred, not confirmed).
+- v1.7.0: ZXing (zxing-wasm reader, bundled, .wasm served from this site; test asserts no outside requests)
+  replaces jsQR where no native reader (= iPhone). Synthetic blur bench: jsQR 2/10, ZXing 4/10; heavy blur
+  beats both → photo mode. iPhone live scan still UNTESTED.
 - PROPOSED, not built: payment step when selling a bundle (cash / bank transfer details / Revolut) — waiting on Imre's answers.
 
 ## Why it exists (Imre, 2026-11-10)

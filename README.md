@@ -25,4 +25,4 @@ Tickets left = whichever runs out first.
   AppSheet Google Sheet into a backup file. Output holds names: keep it out of the repo.
 - Release: bump `APP_VERSION` in `app.js` **and** `CACHE` in `sw.js`, push.
 
-Libraries (vendored): jsQR (Apache-2.0), qrcode-generator (MIT).
+Libraries (vendored): jsQR (Apache-2.0), qrcode-generator (MIT), zxing-wasm reader (MIT; Apache-2.0 ZXing-C++).

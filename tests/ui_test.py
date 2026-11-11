@@ -30,6 +30,8 @@ try:
         pg.on('pageerror', lambda e: errors.append(str(e)))
         pg.on('console', lambda m: m.type == 'error' and errors.append(m.text))
         pg.on('dialog', lambda d: d.accept())
+        outside = []
+        pg.on('request', lambda r: (not r.url.startswith(('http://127.0.0.1', 'data:', 'blob:'))) and outside.append(r.url))
         pg.goto('http://127.0.0.1:8765/')
         pg.screenshot(path=f'{shots}/01-empty.png')
         # restore backup through the real UI
@@ -51,6 +53,7 @@ try:
         pg.click('#scanCard .btn.big')
         pg.wait_for_timeout(300)
         print('PRACTICE:', pg.inner_text('#scanCard').replace('\n', ' | '))
+        print('ENGINE (read by / active):', pg.evaluate('window.__bm.engine()'))
         assert pg.evaluate('[window.__bm.db.attendance.length, window.__bm.db.sessions.length]') == [n_att, n_ses], 'practice saved data!'
         # photo mode (still practice): a blurred, turned photo of the card must be read
         photo = os.path.join(os.path.dirname(y4m), 'photo.jpg')
@@ -132,6 +135,8 @@ try:
         pg.reload(); pg.wait_for_timeout(500)
         assert pg.locator('#modal:not([hidden])').count() == 0, 'reminder came back after answering'
         pg.screenshot(path=f'{shots}/12-today-logo.png')
+        print('OUTSIDE REQUESTS:', outside or 'none')
+        assert not outside, 'app contacted an outside server'
         b.close()
 finally:
     srv.terminate()

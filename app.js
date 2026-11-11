@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.6.0';
+  const APP_VERSION = '1.7.0';
   const KEY_DB = 'bm.db', KEY_PREV = 'bm.db.prev', KEY_LANG = 'bm.lang';
 
   // ---------- storage ----------
@@ -656,7 +656,28 @@
     }
   } catch (e) { /* ignore */ }
 
+  // iPhone: ZXing (the engine many scanner apps use), bundled in the app —
+  // the .wasm file is served from this site, never from an outside server.
+  let zxReady = false, zxBusy = false, lastEngine = '';
+  const ZX_OPTS = { formats: ['QRCode'], tryHarder: true, maxNumberOfSymbols: 1 };
+  function prepareZXing() {
+    if (zxReady || !window.ZXingWASM || !window.WebAssembly) return;
+    try {
+      const p = ZXingWASM.prepareZXingModule({
+        overrides: {
+          locateFile: function (path, prefix) {
+            return path.endsWith('.wasm') ? new URL('vendor/zxing_reader.wasm', location.href).href : prefix + path;
+          }
+        },
+        fireImmediately: true
+      });
+      Promise.resolve(p).then(function () { zxReady = true; }).catch(function (e) { console.warn('zxing', e); });
+    } catch (e) { console.warn('zxing', e); }
+  }
+  function engineName() { return detector ? 'native' : zxReady ? 'ZXing' : 'jsQR'; }
+
   function openScanner(practiceMode) {
+    prepareZXing();
     practice = !!practiceMode;
     unlockAudio();
     frameNo = 0; noVideoSince = 0;
@@ -757,17 +778,18 @@
     noVideoSince = 0;
     frameNo++;
     const vw = v.videoWidth, vh = v.videoHeight;
-    if (frameNo % 5 === 0) setDiag(t('diagRunning', { cam: shortLabel(), w: vw, h: vh, n: frameNo, e: detector ? 'native' : 'jsQR' }));
+    if (frameNo % 5 === 0) setDiag(t('diagRunning', { cam: shortLabel(), w: vw, h: vh, n: frameNo, e: engineName() }));
 
     if (detector) {
       if (detectBusy) return;
       detectBusy = true;
       detector.detect(v).then(function (codes) {
         detectBusy = false;
-        if (codes && codes.length && codes[0].rawValue) handleCode(codes[0].rawValue);
-      }).catch(function () { detectBusy = false; detector = null; });   // fall back to jsQR
+        if (codes && codes.length && codes[0].rawValue) { lastEngine = 'native'; handleCode(codes[0].rawValue); }
+      }).catch(function () { detectBusy = false; detector = null; });   // fall back to ZXing / jsQR
       return;
     }
+    if (zxReady && zxBusy) return;
 
     let sx = 0, sy = 0, sw = vw, sh = vh;
     if (frameNo % 2 === 0) {
@@ -781,8 +803,18 @@
     if (cv.height !== h) cv.height = h;
     const ctx = cv.getContext('2d', { willReadFrequently: true });
     ctx.drawImage(v, sx, sy, sw, sh, 0, 0, w, h);
-    const res = jsQR(ctx.getImageData(0, 0, w, h).data, w, h, { inversionAttempts: frameNo % 4 < 2 ? 'dontInvert' : 'attemptBoth' });
-    if (res && res.data) handleCode(res.data);
+    const img = ctx.getImageData(0, 0, w, h);
+    if (zxReady) {
+      zxBusy = true;
+      ZXingWASM.readBarcodes(img, ZX_OPTS).then(function (r) {
+        zxBusy = false;
+        const hit = r && r.find(function (x) { return x.isValid && x.text; });
+        if (hit) { lastEngine = 'ZXing'; handleCode(hit.text); }
+      }).catch(function (e) { zxBusy = false; zxReady = false; console.warn('zxing', e); });   // fall back to jsQR
+      return;
+    }
+    const res = jsQR(img.data, w, h, { inversionAttempts: frameNo % 4 < 2 ? 'dontInvert' : 'attemptBoth' });
+    if (res && res.data) { lastEngine = 'jsQR'; handleCode(res.data); }
   }
 
   function handleCode(raw) {
@@ -836,8 +868,15 @@
           : Promise.resolve(null);
         return native.then(function (code) {
           if (code) return code;
-          const r = jsQR(x.getImageData(0, 0, c.width, c.height).data, c.width, c.height, { inversionAttempts: 'attemptBoth' });
-          return r && r.data ? r.data : attempt(k + 1);
+          const id = x.getImageData(0, 0, c.width, c.height);
+          const zx = zxReady
+            ? ZXingWASM.readBarcodes(id, ZX_OPTS).then(function (r) { const h = r && r.find(function (y) { return y.isValid && y.text; }); return h ? h.text : null; }).catch(function () { return null; })
+            : Promise.resolve(null);
+          return zx.then(function (z) {
+            if (z) return z;
+            const r = jsQR(id.data, c.width, c.height, { inversionAttempts: 'attemptBoth' });
+            return r && r.data ? r.data : attempt(k + 1);
+          });
         });
       };
       return attempt(0);
@@ -864,7 +903,7 @@
     x.drawImage(v, 0, 0, c.width, c.height);
     x.fillStyle = 'rgba(0,0,0,.65)'; x.fillRect(0, 0, c.width, 30);
     x.fillStyle = '#fff'; x.font = '15px sans-serif';
-    x.fillText('v' + APP_VERSION + ' · ' + camLabel + ' · ' + v.videoWidth + 'x' + v.videoHeight + ' · ' + (detector ? 'native' : 'jsQR') + ' · frames ' + frameNo, 8, 20);
+    x.fillText('v' + APP_VERSION + ' · ' + camLabel + ' · ' + v.videoWidth + 'x' + v.videoHeight + ' · ' + engineName() + ' · frames ' + frameNo, 8, 20);
     c.toBlob(function (b) { shareFile(new File([b], 'scan-test-' + BM.today() + '.png', { type: 'image/png' })); });
   }
   $('scanSnap').onclick = snapshot;
@@ -965,6 +1004,7 @@
   document.documentElement.lang = lang;
   render();
   askMissedClasses();
+  setTimeout(prepareZXing, 1500);   // load the reader early so the first scan is quick
   // iPhone home-screen apps resume instead of reloading, so ask on resume too.
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible') { render(); askMissedClasses(); checkForUpdate(); }
@@ -990,5 +1030,5 @@
   }
 
   // test hook (used by tests/ui.test.py only)
-  window.__bm = { get db() { return db; }, onScan: onScan, openScanner: openScanner, go: go };
+  window.__bm = { get db() { return db; }, onScan: onScan, openScanner: openScanner, go: go, engine: function () { return lastEngine + '/' + engineName(); } };
 })();
