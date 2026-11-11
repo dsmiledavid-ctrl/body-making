@@ -54,7 +54,9 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   Japanese numbers, 30,000 Ft. Tests: 16 rules + full browser run incl. new logic checks.
 - DATA (found 11-11, NOT changed): one AppSheet double check-in (same customer, 2026-09-30, 10 s apart, 2nd
   row on another customer's bundle). Proposed to Imre: delete the 2nd row; waiting for his OK.
-- Safari-engine test browser needs system libs: Imre runs once .
+- Safari-engine test browser needs system libs: Imre runs once: sudo python3 -m playwright install-deps webkit
+  (NOT run by Claude. 11-11 a shell heredoc accidentally tried to execute it; it failed at the password
+  prompt, nothing installed. Lesson: quote heredocs (<<'EOF') when the text contains backticks.)
 - PROPOSED, not built: payment step when selling a bundle (cash / bank transfer details / Revolut) — waiting on Imre's answers.
 
 ## Why it exists (Imre, 2026-11-10)
