@@ -20,7 +20,8 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   greeting), Japanese/English choice, Copy + share. Bundle counts now ignore check-ins of another customer:
   the AppSheet data had ONE such row (a 2026-09-30 check-in linked to a different customer's bundle; IDs had
   been hand-typed). Verified: no effect on anyone's tickets left, so the row was left as is.
-- v1.4.0 (2026-11-11): Imre's first real-iPhone camera test: camera opened, QR shown, NOTHING happened (no read).
+- v1.4.0 (2026-11-11): Imre's first real camera test (CORRECTED 11-11: it was on his Samsung, NOT the iPhone —
+  Claude had assumed iPhone): camera opened, QR shown, NOTHING happened (no read).
   Cause UNKNOWN. Changes: alternate full-detail centre crop / whole frame, inversion tries, 1920x1080 request,
   beep + green flash on read, practice-mode counter (camera size + frames checked) to diagnose, hint "20-30 cm".
   NOTE: the previous version ALSO read a synthetic far-away card in the browser test, so the test does not prove
@@ -31,7 +32,7 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   max-age=600 and Android resumes instead of reloading. Fix: service worker fetches with cache:'no-cache',
   registers with updateViaCache:'none', checks for updates whenever the app comes to the front; Settings
   has "Update to the latest version".
-- v1.6.0 (2026-11-11): live scan ALSO failed on Imre's Samsung (v1.5.1) → not iPhone-specific; cause still
+- v1.6.0 (2026-11-11): live scan failed AGAIN on Imre's Samsung (v1.5.1) (all failures were on that one phone); cause still
   UNKNOWN (no diag line reported yet). Added: Android built-in QR reader (BarcodeDetector) when available,
   continuous autofocus where allowed, camera switch (multi-lens phones, remembered), "Read from photo"
   (native camera app photo → decode; reads a blurred/rotated synthetic photo in tests), status line on
@@ -41,7 +42,8 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
   not reported, so "native reader did it" is inferred, not confirmed).
 - v1.7.0: ZXing (zxing-wasm reader, bundled, .wasm served from this site; test asserts no outside requests)
   replaces jsQR where no native reader (= iPhone). Synthetic blur bench: jsQR 2/10, ZXing 4/10; heavy blur
-  beats both → photo mode. iPhone live scan still UNTESTED.
+  beats both → photo mode. iPhone: the web app has NEVER been scanned with (Imre, 11-11); AppSheet's
+  scanner worked on it, but AppSheet is a native app, so that says nothing about the web app.
 - PROPOSED, not built: payment step when selling a bundle (cash / bank transfer details / Revolut) — waiting on Imre's answers.
 
 ## Why it exists (Imre, 2026-11-10)
