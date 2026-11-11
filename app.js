@@ -3,7 +3,7 @@
 (function () {
   'use strict';
 
-  const APP_VERSION = '1.8.1';
+  const APP_VERSION = '1.9.0';
   const KEY_DB = 'bm.db', KEY_PREV = 'bm.db.prev', KEY_LANG = 'bm.lang';
 
   // ---------- storage ----------
@@ -144,7 +144,9 @@
   // Japanese has no spaces, so browsers break lines anywhere ("期限まであ / と5").
   // nb() keeps each "・" / "、" chunk on one line; breaks fall between chunks.
   function nb(text) {
-    return String(text).split(/(?<=[・、])/).map(function (p) { return '<span class="nb">' + esc(p) + '</span>'; }).join('');
+    text = String(text);
+    if (!/[・、]/.test(text)) return esc(text);           // English etc. wraps normally at spaces
+    return text.split(/(?<=[・、])/).map(function (p) { return '<span class="nb">' + esc(p) + '</span>'; }).join('');
   }
   function sectionTitle(text, extra) { return '<h2 class="sec">' + esc(text) + (extra ? '<span class="sec-extra">' + extra + '</span>' : '') + '</h2>'; }
   function timeOf(ts) {
@@ -183,6 +185,15 @@
 
   function lastBundle(cid) { const l = BM.customerBundles(db, cid); return l.length ? l[l.length - 1] : null; }
 
+  // Shown when a check-in used the last usable ticket: stays until OK is tapped.
+  function endedCard(msg, info, region, ok, undo) {
+    return '<div class="success"><div class="big-check warn">' + icon('alert') + '</div><h3>' + esc(msg) + '</h3>' +
+      '<div class="ended-box"><strong>' + esc(t('endedNow')) + '</strong>' + (info.lost ? '<span>' + esc(t('endedLost', { n: info.lost })) + '</span>' : '') +
+      '<span>' + esc(t('endedTell')) + '</span></div>' +
+      '<button class="btn primary" ' + on(region, ok) + '>' + esc(t('ok')) + '</button>' +
+      (undo ? '<button class="btn ghost" ' + on(region, undo) + '>' + esc(t('undo')) + '</button>' : '') + '</div>';
+  }
+
   // ---------- the action sheet (shared by scanner, hand check-in, customer page) ----------
   // Shows exactly the buttons that make sense for this person on this date.
   function actionSheet(region, cid, date, ctx) {
@@ -201,7 +212,12 @@
     function act(kind) {
       return on(region, function () {
         const keys = { in: 'okIn', bundle: 'okBundle' };
-        if (practice) { ctx.done(t(keys[kind], { name: c.name }) + (lang === 'ja' ? '' : ' ') + t('practiceTag'), null, cid); return; }
+        if (practice) {
+          const sim = kind === 'in' && st.stats && st.stats.ticketsLeft === 1
+            ? { ended: true, lost: Math.max(0, st.bundle.ticketsTotal - st.stats.attended - 1) } : null;
+          ctx.done(t(keys[kind], { name: c.name }) + (lang === 'ja' ? '' : ' ') + t('practiceTag'), null, cid, sim);
+          return;
+        }
         ensureSession(date, !!ctx.fromScanner, function () {
           let created;
           try {
@@ -213,7 +229,16 @@
             created.forEach(function (x) { if (x.startDate) BM.removeBundle(db, x.id); else BM.removeAttendance(db, x.id); });
             save(); render();
           };
-          ctx.done(t(keys[kind], { name: c.name }), undo, cid);
+          // Did this check-in finish the bundle (last ticket, or last class date)?
+          let info = null;
+          if (kind === 'in') {
+            const b = created[0] && db.bundles.find(function (x) { return x.id === created[0].bundleId; });
+            if (b) {
+              const after = BM.bundleStats(db, b, BM.today());
+              if (after.ticketsLeft === 0) info = { ended: true, lost: Math.max(0, b.ticketsTotal - after.attended) };
+            }
+          }
+          ctx.done(t(keys[kind], { name: c.name }), undo, cid, info);
         });
       });
     }
@@ -222,6 +247,7 @@
       const n = st.stats.ticketsLeft;
       return head +
         '<p class="status">' + nb(t('statusLine', { n: n, o: Math.max(0, st.stats.oppLeft) })) + '</p>' +
+        (n === 1 ? '<div class="last-label">' + icon('alert') + esc(t('lastOne')) + '</div>' : '') +
         stamps(st.bundle, st.stats, true) +
         '<button class="btn big primary" ' + act('in') + '>' + bl('check', t('checkIn'), t('checkInUses', { n: n, m: n - 1 })) + '</button>' +
         '<button class="btn ghost" ' + on(region, ctx.close) + '>' + esc(t('cancel')) + '</button>';
@@ -393,7 +419,15 @@
     openModal(actionSheet('modal', cid, date, {
       manual: manual,
       close: closeModal,
-      done: function (msg, undo) { closeModal(); render(); toast(msg, undo); }
+      done: function (msg, undo, cid, info) {
+        closeModal(); render();
+        if (info && info.ended) {
+          REG.modal = {};
+          openModal(endedCard(msg, info, 'modal', closeModal, undo ? function () { undo(); closeModal(); toast(t('undone')); } : null));
+          return;
+        }
+        toast(msg, undo);
+      }
     }));
   }
 
@@ -416,12 +450,18 @@
     const today = BM.today();
     const q = (view.q || '').toLowerCase();
     const list = db.customers.slice().sort(byName).filter(function (c) { return !q || c.name.toLowerCase().includes(q); });
+    const ended = {};
+    BM.endedAtLastClass(db).forEach(function (x) { ended[x.customer.id] = x; });
     let html = pageHead(t('customers'), t('peopleCount', { n: db.customers.length }),
       '<button class="icon-btn" aria-label="' + esc(t('addCustomer')) + '" ' + on('main', editCustomer.bind(null, null)) + '>' + icon('plus') + '</button>') + tabs();
     html += '<input id="cq" class="search" type="search" placeholder="' + esc(t('search')) + '" value="' + esc(view.q || '') + '">';
     html += list.length ? '<div class="list">' + list.map(function (c) {
-      return '<button class="item" ' + on('main', function () { go('customer', { id: c.id }); }) + '>' +
-        '<div class="avatar">' + initial(c.name) + '</div><div class="grow t1">' + esc(c.name) + '</div>' + badgeFor(c.id, today) + icon('next', 'chev') + '</button>';
+      const e = ended[c.id];
+      const line = e ? (e.reason === 'used' ? t('endedUsedLine', { d: fmtDate(e.date) }) : t('endedExpiredLine', { d: fmtDate(e.date), n: e.unused })) : '';
+      return '<button class="item' + (e ? ' flag' : '') + '" ' + on('main', function () { go('customer', { id: c.id }); }) + '>' +
+        '<div class="avatar">' + initial(c.name) + '</div><div class="grow"><div class="t1">' + esc(c.name) + '</div>' +
+        (e ? '<div class="t2 warn">' + icon('alert') + nb(line) + '</div>' : '') + '</div>' +
+        (e ? '<span class="badge warn">' + esc(t('badgeEnded')) + '</span>' : badgeFor(c.id, today)) + icon('next', 'chev') + '</button>';
     }).join('') + '</div>' : '<div class="empty">' + esc(t('noMatch')) + '</div>';
     setTimeout(function () { const s = $('cq'); if (s) s.oninput = function () { view.q = s.value; view.focus = 'cq'; render(); }; });
     return html;
@@ -1056,12 +1096,15 @@
   function found() {
     const f = document.querySelector('.scan-frame');
     if (f) { f.classList.remove('hit'); void f.offsetWidth; f.classList.add('hit'); }
+    beep(1320);
+  }
+  function beep(freq) {
     if (!audio) return;
     try {
       const o = audio.createOscillator(), g = audio.createGain();
-      o.frequency.value = 1320; g.gain.value = 0.15;
+      o.frequency.value = freq; g.gain.value = 0.15;
       o.connect(g); g.connect(audio.destination);
-      o.start(); o.stop(audio.currentTime + 0.12);
+      o.start(); o.stop(audio.currentTime + 0.14);
     } catch (e) { /* ignore */ }
   }
 
@@ -1077,8 +1120,13 @@
       manual: false,
       fromScanner: true,
       close: hideCard,
-      done: function (msg, undo, cid) {
+      done: function (msg, undo, cid, info) {
         const st = BM.status(db, cid, today);
+        if (info && info.ended) {
+          beep(880); setTimeout(function () { beep(660); }, 220);   // two-tone: different from a normal check-in
+          showCard(() => endedCard(msg, info, 'card', hideCard, undo ? function () { undo(); hideCard(); toast(t('undone')); } : null));
+          return;   // stays until Marei taps OK
+        }
         showCard(() => '<div class="success"><div class="big-check">' + icon('check') + '</div><h3>' + esc(msg) + '</h3>' +
           (st.stats ? '<p class="status">' + esc(t('ticketsLeft', { n: st.stats.ticketsLeft })) + '</p>' : '<p class="status"></p>') +
           '<button class="btn primary" ' + on('card', hideCard) + '>' + esc(t('done')) + '</button>' +

@@ -223,6 +223,38 @@
     db.sessions = db.sessions.filter(function (s) { return s.date !== date; });
   };
 
+  // ---- bundles that ended at the most recent class --------------------------------
+  // For the People list: who had a usable bundle going into the last class,
+  // has none now (last ticket used, or the class-date limit ran out), and has
+  // not bought a new one. Clears itself on a new bundle or at the next class.
+  BM.lastClassDate = function (db, today) {
+    today = today || BM.today();
+    const d = db.sessions.map(function (s) { return s.date; }).filter(function (x) { return x <= today; }).sort();
+    return d.length ? d[d.length - 1] : null;
+  };
+
+  BM.endedAtLastClass = function (db, today) {
+    today = today || BM.today();
+    const L = BM.lastClassDate(db, today);
+    if (!L) return [];
+    const out = [];
+    db.customers.forEach(function (c) {
+      if (BM.activeBundle(db, c.id, today)) return;                 // still has (or bought) a bundle
+      BM.customerBundles(db, c.id).forEach(function (b) {
+        if (b.startDate > L) return;
+        const mine = db.attendance.filter(function (a) { return a.bundleId === b.id && a.customerId === c.id; });
+        const attBefore = mine.filter(function (a) { return a.date < L; }).length;
+        const oppBefore = db.sessions.filter(function (s) { return s.date >= b.startDate && s.date < L; }).length;
+        const leftBefore = Math.min(b.ticketsTotal - attBefore, b.maxOpportunities - oppBefore);
+        if (leftBefore <= 0) return;                                  // had already ended before L
+        if (BM.bundleStats(db, b, today).ticketsLeft > 0) return;     // still usable (e.g. L is today, not attended yet)
+        const cameAtL = mine.some(function (a) { return a.date === L; });
+        out.push({ customer: c, bundle: b, date: L, reason: cameAtL ? 'used' : 'expired', unused: Math.max(0, b.ticketsTotal - mine.length) });
+      });
+    });
+    return out;
+  };
+
   // ---- usage report (for the customer) ----------------------------------------
   // Current bundle (or the latest one), the class dates they came to and the
   // ones they missed since it started. Today counts only if they came.

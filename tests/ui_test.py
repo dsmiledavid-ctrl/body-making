@@ -153,6 +153,27 @@ try:
         pg.reload(); pg.wait_for_timeout(500)
         assert pg.locator('#modal:not([hidden])').count() == 0, 'reminder came back after answering'
         pg.screenshot(path=f'{shots}/12-today-logo.png')
+        # ---- last-ticket warning at the scanner, then the marker in the People list ----
+        pg.evaluate("""(cid) => { const d = JSON.parse(localStorage.getItem('bm.db'));
+            const t = new Date(); const iso = t.getFullYear()+'-'+String(t.getMonth()+1).padStart(2,'0')+'-'+String(t.getDate()).padStart(2,'0');
+            d.attendance = d.attendance.filter(a => !(a.customerId === cid && a.date === iso));
+            d.sessions = d.sessions.filter(s => s.date !== iso);
+            const b = d.bundles.filter(b => b.customerId === cid).sort((x, y) => x.startDate < y.startDate ? 1 : -1)[0];
+            b.ticketsTotal = d.attendance.filter(a => a.bundleId === b.id && a.customerId === cid).length + 1; b.maxOpportunities = 99;
+            localStorage.setItem('bm.db', JSON.stringify(d)); }""", cid)
+        pg.reload(); pg.wait_for_timeout(500)
+        pg.click('#nav button >> nth=0'); slide(pg, '#app .slider')
+        pg.wait_for_selector('#scanCard:not([hidden]) .last-label', timeout=10000)
+        pg.click('#scanCard .btn.big'); pg.wait_for_selector('#scanCard .ended-box')
+        pg.wait_for_timeout(3500)
+        assert pg.locator('#scanCard:not([hidden]) .ended-box').count() == 1, 'last-ticket warning closed by itself'
+        pg.screenshot(path=f'{shots}/13-last-ticket.png')
+        pg.click('#scanCard .btn.primary'); pg.click('#scanClose')
+        pg.click('#nav button >> nth=1'); pg.wait_for_timeout(300)
+        flagged = pg.locator('#app .item.flag').count()
+        print('LAST TICKET: warning stayed open; customers marked in list:', flagged)
+        assert flagged >= 1, 'no marker in the People list'
+        pg.screenshot(path=f'{shots}/14-flag.png')
         print('OUTSIDE REQUESTS:', outside or 'none')
         assert not outside, 'app contacted an outside server'
         b.close()

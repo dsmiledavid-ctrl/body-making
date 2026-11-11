@@ -59,6 +59,11 @@ _Last updated 2026-11-10 (session 1, from the Office desk)._
 - Safari-engine test browser needs system libs: Imre runs once: sudo python3 -m playwright install-deps webkit
   (NOT run by Claude. 11-11 a shell heredoc accidentally tried to execute it; it failed at the password
   prompt, nothing installed. Lesson: quote heredocs (<<'EOF') when the text contains backticks.)
+- v1.9.0 (11-11, Imre's ask): last-ticket warning — orange "今回が最後の1回です" label before tapping; after
+  the check-in an orange card that does NOT auto-close + two-tone beep (scanner) / popup (hand & customer page):
+  "回数券はこれで終了…" (+ "期限のため、残りのN回は使えません" when the class limit ends it). People list marks
+  customers whose bundle ended at the most recent class and who have no new bundle (BM.endedAtLastClass);
+  clears itself on a new bundle or at the next class. Imre declined the earlier "next time is last" heads-up.
 - PROPOSED, not built: payment step when selling a bundle (cash / bank transfer details / Revolut) — waiting on Imre's answers.
 
 ## Why it exists (Imre, 2026-11-10)

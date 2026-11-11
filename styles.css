@@ -358,3 +358,19 @@ textarea.report {
 .slider-knob .ic { width: 28px; height: 28px; stroke-width: 2.4; }
 .slider.danger { background: var(--danger); box-shadow: none; }
 .slider.danger .slider-knob { color: var(--danger); }
+
+/* last-ticket warnings */
+.last-label {
+  display: flex; align-items: center; gap: 8px; margin: -4px 0 12px; padding: 8px 12px; border-radius: 12px;
+  background: var(--warn-soft); color: var(--warn); font-weight: 700; font-size: 14px;
+}
+.last-label .ic { width: 18px; height: 18px; }
+.big-check.warn { background: var(--warn-soft); color: var(--warn); }
+.ended-box {
+  display: flex; flex-direction: column; gap: 6px; text-align: left; margin: 4px 0 16px; padding: 14px 16px;
+  border-radius: 14px; background: var(--warn-soft); color: #7a4a0c; font-size: 14px; line-height: 1.55;
+}
+.ended-box strong { font-size: 15px; }
+.t2.warn { color: var(--warn); }
+.t2.warn .ic { width: 15px; height: 15px; vertical-align: -2px; margin-right: 4px; }
+.item.flag { background: #fffaf2; }

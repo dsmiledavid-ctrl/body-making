@@ -153,4 +153,46 @@ t("a check-in linked to someone else's bundle does not use its tickets", functio
   assert.strictEqual(BM.bundleStats(db, db.bundles[0], '2026-10-08').attended, 0);
 });
 
+function setup() {
+  const db = BM.emptyDB();
+  const c = BM.addCustomer(db, 'A', '');
+  ['2026-10-07', '2026-10-14', '2026-10-21'].forEach(function (d) { BM.addSession(db, d); });
+  db.bundles.push({ id: 'b', customerId: c.id, startDate: '2026-10-07', ticketsTotal: 3, maxOpportunities: 12 });
+  return { db: db, c: c };
+}
+
+t('ended at last class: used the last ticket, no new bundle -> marked "used"', function () {
+  const x = setup();
+  ['2026-10-07', '2026-10-14', '2026-10-21'].forEach(function (d, i) { x.db.attendance.push({ id: 'a' + i, date: d, customerId: x.c.id, type: 'Bundle', bundleId: 'b' }); });
+  const r = BM.endedAtLastClass(x.db, '2026-10-25');
+  assert.strictEqual(r.length, 1); assert.strictEqual(r[0].reason, 'used'); assert.strictEqual(r[0].date, '2026-10-21');
+});
+
+t('ended at last class: class limit ran out without coming -> marked "expired" with unused count', function () {
+  const x = setup();
+  x.db.bundles[0].ticketsTotal = 10; x.db.bundles[0].maxOpportunities = 3;
+  x.db.attendance.push({ id: 'a', date: '2026-10-07', customerId: x.c.id, type: 'Bundle', bundleId: 'b' });
+  const r = BM.endedAtLastClass(x.db, '2026-10-25');
+  assert.strictEqual(r.length, 1); assert.strictEqual(r[0].reason, 'expired'); assert.strictEqual(r[0].unused, 9);
+});
+
+t('ended at last class: not marked after buying a new bundle, or when it ended earlier, or still has tickets', function () {
+  const x = setup();
+  ['2026-10-07', '2026-10-14', '2026-10-21'].forEach(function (d, i) { x.db.attendance.push({ id: 'a' + i, date: d, customerId: x.c.id, type: 'Bundle', bundleId: 'b' }); });
+  BM.addSession(x.db, '2026-10-28');                                   // one more class happened
+  assert.strictEqual(BM.endedAtLastClass(x.db, '2026-10-30').length, 0, 'ended an earlier class');
+  const y = setup();
+  ['2026-10-07', '2026-10-14', '2026-10-21'].forEach(function (d, i) { y.db.attendance.push({ id: 'a' + i, date: d, customerId: y.c.id, type: 'Bundle', bundleId: 'b' }); });
+  BM.sellBundle(y.db, y.c.id, '2026-10-25');
+  assert.strictEqual(BM.endedAtLastClass(y.db, '2026-10-25').length, 0, 'bought a new bundle');
+  const z = setup();
+  assert.strictEqual(BM.endedAtLastClass(z.db, '2026-10-25').length, 0, 'still has tickets');
+});
+
+t('ended at last class: today is a class day and they have not come yet -> not marked', function () {
+  const x = setup();
+  x.db.bundles[0].ticketsTotal = 10; x.db.bundles[0].maxOpportunities = 3;  // today (10-21) is the 3rd and last class date
+  assert.strictEqual(BM.endedAtLastClass(x.db, '2026-10-21').length, 0);
+});
+
 console.log(n + ' tests passed');
